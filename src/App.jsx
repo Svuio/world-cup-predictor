@@ -16,14 +16,23 @@ const INITIAL_MATCHES = [
 ];
 
 export default function App() {
+  // Състояние, което следи дали дизайнът е зареден
+  const [isTailwindLoaded, setIsTailwindLoaded] = useState(false);
+
   // --- АВТОМАТИЧНО ЗАРЕЖДАНЕ НА ДИЗАЙНА (TAILWIND CDN FIX) ---
   useEffect(() => {
-    if (!document.getElementById('tailwind-cdn')) {
-      const script = document.createElement('script');
-      script.id = 'tailwind-cdn';
-      script.src = 'https://cdn.tailwindcss.com';
-      document.head.appendChild(script);
+    if (document.getElementById('tailwind-cdn')) {
+      setIsTailwindLoaded(true);
+      return;
     }
+    const script = document.createElement('script');
+    script.id = 'tailwind-cdn';
+    script.src = 'https://cdn.tailwindcss.com';
+    script.onload = () => {
+      // Когато скриптът се свали успешно, показваме приложението
+      setIsTailwindLoaded(true);
+    };
+    document.head.appendChild(script);
   }, []);
   // -----------------------------------------------------------
 
@@ -130,6 +139,11 @@ export default function App() {
       return { ...user, points: totalPoints };
     }));
   };
+
+  // Ако дизайнът все още се зарежда, показваме просто тъмен фон (без грозен HTML)
+  if (!isTailwindLoaded) {
+      return <div style={{ minHeight: '100vh', backgroundColor: '#0f172a' }}></div>;
+  }
 
   if (!currentUser) {
     return (
