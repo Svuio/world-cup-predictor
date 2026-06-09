@@ -9,14 +9,24 @@ const INITIAL_MATCHES = [
   { id: 3, date: '12 Юни 2026', time: '19:00', home: 'САЩ', away: 'Гана', oddsH: 1.80, oddsD: 3.40, oddsA: 4.50, status: 'upcoming', resultHome: null, resultAway: null },
   { id: 4, date: '12 Юни 2026', time: '22:00', home: 'Бразилия', away: 'Сърбия', oddsH: 1.40, oddsD: 4.50, oddsA: 8.00, status: 'upcoming', resultHome: null, resultAway: null },
   { id: 5, date: '13 Юни 2026', time: '16:00', home: 'Испания', away: 'Нигерия', oddsH: 1.60, oddsD: 3.80, oddsA: 5.50, status: 'upcoming', resultHome: null, resultAway: null },
-  // ... (Тук можеш да добавиш останалите мачове от групите по същия модел)
   
-  // Елиминационна фаза (1/16 Финали) - Те са скрити за потребителите, докато не се преименуват
+  // Елиминационна фаза (1/16 Финали)
   { id: 73, date: '28 Юни 2026', time: '18:00', home: 'Победител Група A', away: 'Трети Група C/E/F/H/I', oddsH: 1.90, oddsD: 3.30, oddsA: 4.00, status: 'upcoming', resultHome: null, resultAway: null },
   { id: 74, date: '28 Юни 2026', time: '22:00', home: 'Втори Група B', away: 'Втори Група C', oddsH: 2.50, oddsD: 3.00, oddsA: 2.80, status: 'upcoming', resultHome: null, resultAway: null }
 ];
 
 export default function App() {
+  // --- АВТОМАТИЧНО ЗАРЕЖДАНЕ НА ДИЗАЙНА (TAILWIND CDN FIX) ---
+  useEffect(() => {
+    if (!document.getElementById('tailwind-cdn')) {
+      const script = document.createElement('script');
+      script.id = 'tailwind-cdn';
+      script.src = 'https://cdn.tailwindcss.com';
+      document.head.appendChild(script);
+    }
+  }, []);
+  // -----------------------------------------------------------
+
   const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [matches, setMatches] = useState(INITIAL_MATCHES);
@@ -42,7 +52,6 @@ export default function App() {
             setCurrentUser(existingUser.name);
             setActiveTab('matches');
         } else if (!existingUser.password) {
-            // Спасителен пояс за стари акаунти без парола
             setUsers(users.map(u => u.name === existingUser.name ? {...u, password: loginPass} : u));
             setCurrentUser(existingUser.name);
             setActiveTab('matches');
@@ -50,7 +59,6 @@ export default function App() {
             setDialog({ isOpen: true, type: 'alert', message: 'Грешна парола за този потребител!' });
         }
     } else {
-        // Регистрация на нов потребител
         setUsers([...users, { name: loginName.trim(), password: loginPass, predictions: {}, points: 0 }]);
         setCurrentUser(loginName.trim());
         setActiveTab('matches');
@@ -96,7 +104,6 @@ export default function App() {
         (predH === predA && match.resultHome === match.resultAway)
     ) pts = 1;
 
-    // UNDERDOG BONUS (Само ако е познат знака)
     let hasUnderdogBonus = false;
     if (pts > 0) {
         if (match.resultHome > match.resultAway && match.oddsH >= 4.00) hasUnderdogBonus = true;
@@ -131,7 +138,6 @@ export default function App() {
           <Trophy size={40} /> World Cup '26
         </div>
         
-        {/* User Login Form */}
         <div className="bg-slate-800 p-8 rounded-2xl shadow-xl border border-slate-700 w-full max-w-md mb-6">
           <h2 className="text-white text-xl font-bold mb-6 text-center">Вход / Регистрация</h2>
           <form onSubmit={handleLogin} className="space-y-4">
@@ -165,7 +171,6 @@ export default function App() {
           </form>
         </div>
 
-        {/* Admin Login Box */}
         <div className="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700 w-full max-w-md text-center">
             <h2 className="text-slate-300 font-semibold mb-4 flex items-center justify-center gap-2">
                 <Lock size={18} /> Админ Достъп
@@ -194,7 +199,6 @@ export default function App() {
             </form>
         </div>
 
-        {/* Custom Dialog Modal */}
         {dialog.isOpen && (
           <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4">
               <div className="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700 w-full max-w-sm text-center">
@@ -229,7 +233,6 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 pb-20">
       
-      {/* Header */}
       <header className="bg-slate-800 border-b border-slate-700 p-4 sticky top-0 z-10 flex justify-between items-center shadow-md">
         <div>
            <div className="text-emerald-400 font-bold text-lg leading-tight flex items-center gap-2">
@@ -251,7 +254,6 @@ export default function App() {
 
       <main className="p-4 max-w-2xl mx-auto">
         
-        {/* MATCHES TAB */}
         {activeTab === 'matches' && matches
           .filter(m => !m.home.startsWith('Победител') && !m.home.startsWith('Втори') && !m.home.startsWith('Трети') && !m.home.startsWith('Загубил'))
           .map(m => (
@@ -306,7 +308,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Other predictions section */}
             <div className="mt-4 pt-3 border-t border-slate-700/50">
               <div className="text-xs text-slate-400 mb-2 flex justify-between">
                 <span>Прогнози на колегите:</span>
@@ -333,7 +334,6 @@ export default function App() {
           </div>
         ))}
 
-        {/* STANDINGS TAB */}
         {activeTab === 'standings' && (
           <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-xl">
             <div className="bg-slate-900 p-4 border-b border-slate-700 flex items-center gap-2">
@@ -359,7 +359,6 @@ export default function App() {
           </div>
         )}
 
-        {/* RULES TAB */}
         {activeTab === 'rules' && (
           <div className="space-y-4">
             <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
@@ -393,7 +392,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ADMIN TAB */}
         {activeTab === 'admin' && isAdmin && (
           <div className="space-y-4">
              <div className="flex gap-2 mb-6">
@@ -515,7 +513,6 @@ export default function App() {
 
       </main>
 
-      {/* Navigation */}
       <nav className="fixed bottom-0 w-full bg-slate-900/95 backdrop-blur-md border-t border-slate-800 pb-safe pt-2 px-6 flex justify-around items-center z-50">
         <NavButton active={activeTab==='matches'} onClick={() => setActiveTab('matches')} icon={<Swords size={20}/>} label="Мачове" />
         <NavButton active={activeTab==='standings'} onClick={() => setActiveTab('standings')} icon={<Trophy size={20}/>} label="Класиране" />
@@ -523,7 +520,6 @@ export default function App() {
         {isAdmin && <NavButton active={activeTab==='admin'} onClick={() => setActiveTab('admin')} icon={<Lock size={20} className="text-rose-400"/>} label="Админ" />}
       </nav>
 
-      {/* Custom Global Dialog (Main) */}
       {dialog.isOpen && (
           <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4">
               <div className="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700 w-full max-w-sm text-center">
