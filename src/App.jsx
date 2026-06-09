@@ -1,5 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { Swords, Trophy, ShieldAlert, Lock, Trash2, XCircle, LogOut } from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
+
+// --- FIREBASE КОНФИГУРАЦИЯ ---
+const firebaseConfig = typeof __firebase_config !== 'undefined' 
+  ? JSON.parse(__firebase_config) 
+  : {
+      apiKey: "ВЪВЕДИ_ТВОЯ_API_KEY",
+      authDomain: "ВЪВЕДИ_ТВОЯ_AUTH_DOMAIN",
+      projectId: "ВЪВЕДИ_ТВОЯ_PROJECT_ID",
+      storageBucket: "ВЪВЕДИ_ТВОЯ_STORAGE_BUCKET",
+      messagingSenderId: "ВЪВЕДИ_ТВОЯ_SENDER_ID",
+      appId: "ВЪВЕДИ_ТВОЯ_APP_ID"
+    };
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const globalAppId = typeof __app_id !== 'undefined' ? __app_id : 'office-world-cup-2026';
+// Изчистване на ID-то от наклонени черти, за да не чупи Firebase пътя
+const safeAppId = globalAppId.replace(/\//g, '_');
 
 const ADMIN_PIN = '1414';
 
@@ -9,17 +31,16 @@ const INITIAL_MATCHES = [
   { id: 3, date: '12 Юни 2026', time: '19:00', home: 'САЩ', away: 'Гана', oddsH: 1.80, oddsD: 3.40, oddsA: 4.50, status: 'upcoming', resultHome: null, resultAway: null },
   { id: 4, date: '12 Юни 2026', time: '22:00', home: 'Бразилия', away: 'Сърбия', oddsH: 1.40, oddsD: 4.50, oddsA: 8.00, status: 'upcoming', resultHome: null, resultAway: null },
   { id: 5, date: '13 Юни 2026', time: '16:00', home: 'Испания', away: 'Нигерия', oddsH: 1.60, oddsD: 3.80, oddsA: 5.50, status: 'upcoming', resultHome: null, resultAway: null },
-  
-  // Елиминационна фаза (1/16 Финали)
   { id: 73, date: '28 Юни 2026', time: '18:00', home: 'Победител Група A', away: 'Трети Група C/E/F/H/I', oddsH: 1.90, oddsD: 3.30, oddsA: 4.00, status: 'upcoming', resultHome: null, resultAway: null },
   { id: 74, date: '28 Юни 2026', time: '22:00', home: 'Втори Група B', away: 'Втори Група C', oddsH: 2.50, oddsD: 3.00, oddsA: 2.80, status: 'upcoming', resultHome: null, resultAway: null }
 ];
 
 export default function App() {
-  // Състояние, което следи дали дизайнът е зареден
   const [isTailwindLoaded, setIsTailwindLoaded] = useState(false);
+  const [fbUser, setFbUser] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(true);
 
-  // --- АВТОМАТИЧНО ЗАРЕЖДАНЕ НА ДИЗАЙНА (TAILWIND CDN FIX) ---
+  // 1. Зареждане на Tailwind CSS
   useEffect(() => {
     if (document.getElementById('tailwind-cdn')) {
       setIsTailwindLoaded(true);
@@ -28,27 +49,72 @@ export default function App() {
     const script = document.createElement('script');
     script.id = 'tailwind-cdn';
     script.src = 'https://cdn.tailwindcss.com';
-    script.onload = () => {
-      // Когато скриптът се свали успешно, показваме приложението
-      setIsTailwindLoaded(true);
-    };
+    script.onload = () => setIsTailwindLoaded(true);
     document.head.appendChild(script);
   }, []);
-  // -----------------------------------------------------------
+
+  // 2. Инициализация на Firebase Auth
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch(e) { console.error("Firebase Auth Error:", e); }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, user => setFbUser(user));
+    return () => unsubscribe();
+  }, []);
 
   const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [matches, setMatches] = useState(INITIAL_MATCHES);
-  const [activeTab, setActiveTab] = useState('matches');
   
+  // 3. Синхронизация с базата данни в реално време
+  useEffect(() => {
+    if (!fbUser) return;
+    const docRef = doc(db, 'artifacts', safeAppId, 'public', 'data', 'worldCupState', 'main');
+    
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.users) setUsers(data.users);
+        if (data.matches) setMatches(data.matches);
+      } else {
+        // Ако няма данни (първо пускане), създаваме празен документ
+        setDoc(docRef, { users: [], matches: INITIAL_MATCHES });
+      }
+      setIsSyncing(false);
+    }, (error) => {
+      console.error("Firebase Snapshot Error:", error);
+      setIsSyncing(false);
+    });
+
+    return () => unsubscribe();
+  }, [fbUser]);
+
+  // Функция за запазване на промените в облака
+  const syncData = async (newUsers, newMatches) => {
+    if (!fbUser) return;
+    try {
+      const docRef = doc(db, 'artifacts', safeAppId, 'public', 'data', 'worldCupState', 'main');
+      await setDoc(docRef, {
+        users: newUsers || users,
+        matches: newMatches || matches
+      }, { merge: true });
+    } catch(e) { console.error("Sync Error:", e); }
+  };
+
+  const [activeTab, setActiveTab] = useState('matches');
   const [loginName, setLoginName] = useState('');
   const [loginPass, setLoginPass] = useState('');
   const [adminPin, setAdminPin] = useState('');
-  
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAllMatches, setShowAllMatches] = useState(false);
   const [adminSubTab, setAdminSubTab] = useState('results');
-  
   const [dialog, setDialog] = useState({ isOpen: false, type: 'confirm', message: '', onConfirm: null });
 
   const handleLogin = (e) => {
@@ -61,14 +127,18 @@ export default function App() {
             setCurrentUser(existingUser.name);
             setActiveTab('matches');
         } else if (!existingUser.password) {
-            setUsers(users.map(u => u.name === existingUser.name ? {...u, password: loginPass} : u));
+            const newUsers = users.map(u => u.name === existingUser.name ? {...u, password: loginPass} : u);
+            setUsers(newUsers);
+            syncData(newUsers, null);
             setCurrentUser(existingUser.name);
             setActiveTab('matches');
         } else {
             setDialog({ isOpen: true, type: 'alert', message: 'Грешна парола за този потребител!' });
         }
     } else {
-        setUsers([...users, { name: loginName.trim(), password: loginPass, predictions: {}, points: 0 }]);
+        const newUsers = [...users, { name: loginName.trim(), password: loginPass, predictions: {}, points: 0 }];
+        setUsers(newUsers);
+        syncData(newUsers, null);
         setCurrentUser(loginName.trim());
         setActiveTab('matches');
     }
@@ -83,7 +153,7 @@ export default function App() {
   };
 
   const handlePrediction = (matchId, h, a) => {
-    setUsers(users.map(u => {
+    const newUsers = users.map(u => {
       if (u.name === currentUser) {
         const newPreds = { ...u.predictions };
         if (h === '' && a === '') {
@@ -94,7 +164,9 @@ export default function App() {
         return { ...u, predictions: newPreds };
       }
       return u;
-    }));
+    });
+    setUsers(newUsers);
+    syncData(newUsers, null); // Синхронизиране в облака
   };
 
   const calculatePoints = (match, prediction) => {
@@ -127,22 +199,29 @@ export default function App() {
 
   const publishResult = (matchId, homeGoals, awayGoals) => {
     const updatedMatches = matches.map(m => m.id === matchId ? { ...m, resultHome: homeGoals, resultAway: awayGoals, status: 'finished' } : m);
-    setMatches(updatedMatches);
     
-    const finishedMatch = updatedMatches.find(m => m.id === matchId);
-    
-    setUsers(users.map(user => {
+    const newUsers = users.map(user => {
       let totalPoints = 0;
       updatedMatches.filter(m => m.status === 'finished').forEach(m => {
           totalPoints += calculatePoints(m, user.predictions[m.id]);
       });
       return { ...user, points: totalPoints };
-    }));
+    });
+
+    setMatches(updatedMatches);
+    setUsers(newUsers);
+    syncData(newUsers, updatedMatches); // Админът запазва резултата глобално
   };
 
-  // Ако дизайнът все още се зарежда, показваме просто тъмен фон (без грозен HTML)
-  if (!isTailwindLoaded) {
-      return <div style={{ minHeight: '100vh', backgroundColor: '#0f172a' }}></div>;
+  // Екран за зареждане
+  if (!isTailwindLoaded || isSyncing) {
+      return (
+          <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+              <div className="animate-pulse text-emerald-500 flex items-center gap-2 font-bold">
+                  <Trophy size={24} /> Синхронизиране със сървъра...
+              </div>
+          </div>
+      );
   }
 
   if (!currentUser) {
@@ -490,7 +569,9 @@ export default function App() {
                                                 type: 'confirm',
                                                 message: `Изчистване на всички прогнози на ${u.name}?`,
                                                 onConfirm: () => {
-                                                    setUsers(users.map(user => user.name === u.name ? {...user, predictions: {}, points: 0} : user));
+                                                    const newUsers = users.map(user => user.name === u.name ? {...user, predictions: {}, points: 0} : user);
+                                                    setUsers(newUsers);
+                                                    syncData(newUsers, null);
                                                     setDialog({ isOpen: false, type: 'confirm', message: '', onConfirm: null });
                                                 }
                                             });
@@ -506,7 +587,9 @@ export default function App() {
                                                 type: 'confirm',
                                                 message: `Изтриване на играч ${u.name} завинаги?`,
                                                 onConfirm: () => {
-                                                    setUsers(users.filter(user => user.name !== u.name));
+                                                    const newUsers = users.filter(user => user.name !== u.name);
+                                                    setUsers(newUsers);
+                                                    syncData(newUsers, null);
                                                     setDialog({ isOpen: false, type: 'confirm', message: '', onConfirm: null });
                                                 }
                                             });
