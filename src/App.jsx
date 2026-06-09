@@ -35,6 +35,15 @@ const INITIAL_MATCHES = [
   { id: 74, date: '28 Юни 2026', time: '22:00', home: 'Втори Група B', away: 'Втори Група C', oddsH: 2.50, oddsD: 3.00, oddsA: 2.80, status: 'upcoming', resultHome: null, resultAway: null }
 ];
 
+// Помощна функция за генериране на сигурен SHA-256 хеш на паролата в браузъра
+const hashPassword = async (password) => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
 export default function App() {
   const [isTailwindLoaded, setIsTailwindLoaded] = useState(false);
   const [fbUser, setFbUser] = useState(null);
@@ -118,28 +127,39 @@ export default function App() {
   const [adminSubTab, setAdminSubTab] = useState('results');
   const [dialog, setDialog] = useState({ isOpen: false, type: 'confirm', message: '', onConfirm: null });
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     if (!loginName.trim() || !loginPass.trim()) return;
 
+    const hashed = await hashPassword(loginPass);
     const existingUser = users.find(u => u.name === loginName.trim());
+    
     if (existingUser) {
-        if (existingUser.password === loginPass) {
+        // Проверяваме дали въведеният хеш съвпада, ИЛИ за старите играчи - дали чистата им стара парола съвпада
+        if (existingUser.password === hashed || existingUser.password === loginPass) {
+            // Ако потребителят е влязъл със стара парола на чист текст, автоматично я превръщаме в SHA-256 хеш
+            if (existingUser.password === loginPass) {
+                const newUsers = users.map(u => u.name === existingUser.name ? {...u, password: hashed} : u);
+                setUsers(newUsers);
+                await syncData(newUsers, null);
+            }
             setCurrentUser(existingUser.name);
             setActiveTab('matches');
         } else if (!existingUser.password) {
-            const newUsers = users.map(u => u.name === existingUser.name ? {...u, password: loginPass} : u);
+            // Защита за акаунти съвсем без парола
+            const newUsers = users.map(u => u.name === existingUser.name ? {...u, password: hashed} : u);
             setUsers(newUsers);
-            syncData(newUsers, null);
+            await syncData(newUsers, null);
             setCurrentUser(existingUser.name);
             setActiveTab('matches');
         } else {
             setDialog({ isOpen: true, type: 'alert', message: 'Грешна парола за този потребител!' });
         }
     } else {
-        const newUsers = [...users, { name: loginName.trim(), password: loginPass, predictions: {}, points: 0 }];
+        // Регистрация на нов потребител - директно записваме SHA-256 хеша в базата данни
+        const newUsers = [...users, { name: loginName.trim(), password: hashed, predictions: {}, points: 0 }];
         setUsers(newUsers);
-        syncData(newUsers, null);
+        await syncData(newUsers, null);
         setCurrentUser(loginName.trim());
         setActiveTab('matches');
     }
@@ -560,7 +580,7 @@ export default function App() {
                              <div key={u.name} className="flex justify-between items-center bg-slate-900 p-3 rounded-xl border border-slate-700/50">
                                  <div>
                                      <div className="font-bold">{u.name}</div>
-                                     <div className="text-xs text-slate-500">Прогнози: {Object.keys(u.predictions).length} | Точки: {u.points}</div>
+                                     <div className="text-xs text-slate-500">Прогнози: {Object.keys(u.predictions).length} | {u.points} т.</div>
                                  </div>
                                  <div className="flex gap-2">
                                      <button 
