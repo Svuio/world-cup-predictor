@@ -8,19 +8,19 @@ import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
 const firebaseConfig = typeof __firebase_config !== 'undefined' 
   ? JSON.parse(__firebase_config) 
   : {
-      apiKey: "ВЪВЕДИ_ТВОЯ_API_KEY",
-      authDomain: "ВЪВЕДИ_ТВОЯ_AUTH_DOMAIN",
-      projectId: "ВЪВЕДИ_ТВОЯ_PROJECT_ID",
-      storageBucket: "ВЪВЕДИ_ТВОЯ_STORAGE_BUCKET",
-      messagingSenderId: "ВЪВЕДИ_ТВОЯ_SENDER_ID",
-      appId: "ВЪВЕДИ_ТВОЯ_APP_ID"
+      apiKey: "AIzaSyCBEEbtGL-rGXE8iF9J4vIkwCu22B2sIj0",
+      authDomain: "world-cup-2026-office.firebaseapp.com",
+      projectId: "world-cup-2026-office",
+      storageBucket: "world-cup-2026-office.firebasestorage.app",
+      messagingSenderId: "881867300185",
+      appId: "1:881867300185:web:98015141d6438428388048",
+      measurementId: "G-K944TBKZP6"
     };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const globalAppId = typeof __app_id !== 'undefined' ? __app_id : 'office-world-cup-2026';
-// Изчистване на ID-то от наклонени черти, за да не чупи Firebase пътя
 const safeAppId = globalAppId.replace(/\//g, '_');
 
 const ADMIN_PIN = '1414';
@@ -62,10 +62,13 @@ export default function App() {
         } else {
           await signInAnonymously(auth);
         }
-      } catch(e) { console.error("Firebase Auth Error:", e); }
+      } catch(e) { console.error("Firebase Auth Error:", e); setIsSyncing(false); }
     };
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, user => setFbUser(user));
+    const unsubscribe = onAuthStateChanged(auth, user => {
+        setFbUser(user);
+        if(!user) setIsSyncing(false);
+    });
     return () => unsubscribe();
   }, []);
 
@@ -84,7 +87,6 @@ export default function App() {
         if (data.users) setUsers(data.users);
         if (data.matches) setMatches(data.matches);
       } else {
-        // Ако няма данни (първо пускане), създаваме празен документ
         setDoc(docRef, { users: [], matches: INITIAL_MATCHES });
       }
       setIsSyncing(false);
@@ -96,7 +98,6 @@ export default function App() {
     return () => unsubscribe();
   }, [fbUser]);
 
-  // Функция за запазване на промените в облака
   const syncData = async (newUsers, newMatches) => {
     if (!fbUser) return;
     try {
@@ -166,7 +167,7 @@ export default function App() {
       return u;
     });
     setUsers(newUsers);
-    syncData(newUsers, null); // Синхронизиране в облака
+    syncData(newUsers, null);
   };
 
   const calculatePoints = (match, prediction) => {
@@ -210,14 +211,14 @@ export default function App() {
 
     setMatches(updatedMatches);
     setUsers(newUsers);
-    syncData(newUsers, updatedMatches); // Админът запазва резултата глобално
+    syncData(newUsers, updatedMatches);
   };
 
   // Екран за зареждане
   if (!isTailwindLoaded || isSyncing) {
       return (
-          <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-              <div className="animate-pulse text-emerald-500 flex items-center gap-2 font-bold">
+          <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', fontFamily: 'sans-serif' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
                   <Trophy size={24} /> Синхронизиране със сървъра...
               </div>
           </div>
