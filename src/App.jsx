@@ -26,7 +26,7 @@ const safeAppId = globalAppId.replace(/\//g, '_');
 const ADMIN_PIN = '1414';
 
 const INITIAL_MATCHES = [
-  { id: 1, date: '11 Юни 2026', time: '22:00', home: 'Мексико', away: 'Южна Корея', oddsH: 2.10, oddsD: 3.20, oddsA: 3.50, status: 'upcoming', resultHome: null, resultAway: null },
+  { id: 1, date: '11 Юни 2026', time: '21:00', home: 'Мексико', away: 'Южна Африка', oddsH: 2.10, oddsD: 3.20, oddsA: 3.50, status: 'upcoming', resultHome: null, resultAway: null },
   { id: 2, date: '12 Юни 2026', time: '16:00', home: 'Канада', away: 'Мароко', oddsH: 2.50, oddsD: 3.10, oddsA: 2.80, status: 'upcoming', resultHome: null, resultAway: null },
   { id: 3, date: '12 Юни 2026', time: '19:00', home: 'САЩ', away: 'Гана', oddsH: 1.80, oddsD: 3.40, oddsA: 4.50, status: 'upcoming', resultHome: null, resultAway: null },
   { id: 4, date: '12 Юни 2026', time: '22:00', home: 'Бразилия', away: 'Сърбия', oddsH: 1.40, oddsD: 4.50, oddsA: 8.00, status: 'upcoming', resultHome: null, resultAway: null },
