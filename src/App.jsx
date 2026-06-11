@@ -26,13 +26,23 @@ const safeAppId = globalAppId.replace(/\//g, '_');
 const ADMIN_PIN = '1414';
 
 const INITIAL_MATCHES = [
-  { id: 1, date: '11 Юни 2026', time: '21:00', home: 'Мексико', away: 'Южна Африка', oddsH: 2.10, oddsD: 3.20, oddsA: 3.50, status: 'upcoming', resultHome: null, resultAway: null },
-  { id: 2, date: '12 Юни 2026', time: '16:00', home: 'Канада', away: 'Мароко', oddsH: 2.50, oddsD: 3.10, oddsA: 2.80, status: 'upcoming', resultHome: null, resultAway: null },
-  { id: 3, date: '12 Юни 2026', time: '19:00', home: 'САЩ', away: 'Гана', oddsH: 1.80, oddsD: 3.40, oddsA: 4.50, status: 'upcoming', resultHome: null, resultAway: null },
-  { id: 4, date: '12 Юни 2026', time: '22:00', home: 'Бразилия', away: 'Сърбия', oddsH: 1.40, oddsD: 4.50, oddsA: 8.00, status: 'upcoming', resultHome: null, resultAway: null },
-  { id: 5, date: '13 Юни 2026', time: '16:00', home: 'Испания', away: 'Нигерия', oddsH: 1.60, oddsD: 3.80, oddsA: 5.50, status: 'upcoming', resultHome: null, resultAway: null },
-  { id: 73, date: '28 Юни 2026', time: '18:00', home: 'Победител Група A', away: 'Трети Група C/E/F/H/I', oddsH: 1.90, oddsD: 3.30, oddsA: 4.00, status: 'upcoming', resultHome: null, resultAway: null },
-  { id: 74, date: '28 Юни 2026', time: '22:00', home: 'Втори Група B', away: 'Втори Група C', oddsH: 2.50, oddsD: 3.00, oddsA: 2.80, status: 'upcoming', resultHome: null, resultAway: null }
+  { id: 1, date: '11 Юни 2026', time: '22:00', home: 'Мексико', away: 'Южна Африка', oddsH: 1.35, oddsD: 4.80, oddsA: 9.00, status: 'upcoming', resultHome: null, resultAway: null },
+  { id: 2, date: '12 Юни 2026', time: '16:00', home: 'Южна Корея', away: 'Чехия', oddsH: 2.45, oddsD: 3.10, oddsA: 3.00, status: 'upcoming', resultHome: null, resultAway: null },
+  { id: 3, date: '12 Юни 2026', time: '19:00', home: 'Канада', away: 'Босна и Херцеговина', oddsH: 2.05, oddsD: 3.30, oddsA: 3.70, status: 'upcoming', resultHome: null, resultAway: null },
+  { id: 4, date: '13 Юни 2026', time: '22:00', home: 'САЩ', away: 'Парагвай', oddsH: 1.85, oddsD: 3.40, oddsA: 4.40, status: 'upcoming', resultHome: null, resultAway: null },
+  { id: 5, date: '13 Юни 2026', time: '16:00', home: 'Катар', away: 'Швейцария', oddsH: 6.50, oddsD: 4.00, oddsA: 1.55, status: 'upcoming', resultHome: null, resultAway: null },
+  { id: 6, date: '14 Юни 2026', time: '19:00', home: 'Бразилия', away: 'Мароко', oddsH: 1.30, oddsD: 5.00, oddsA: 10.00, status: 'upcoming', resultHome: null, resultAway: null },
+  { id: 7, date: '14 Юни 2026', time: '22:00', home: 'Хаити', away: 'Шотландия', oddsH: 8.00, oddsD: 4.50, oddsA: 1.40, status: 'upcoming', resultHome: null, resultAway: null },
+  
+  // ВАЖНО: Постави останалите мачове (от 8 до 85) тук в същия формат!
+  
+  { id: 86, date: '03 Юли 2026', time: '18:00', home: 'Победител Група J', away: 'Втори Група H', oddsH: 2.00, oddsD: 3.00, oddsA: 3.00, status: 'upcoming', resultHome: null, resultAway: null },
+  { id: 87, date: '03 Юли 2026', time: '22:00', home: 'Победител Група H', away: 'Втори Група G', oddsH: 2.00, oddsD: 3.00, oddsA: 3.00, status: 'upcoming', resultHome: null, resultAway: null },
+  { id: 88, date: '03 Юли 2026', time: '18:00', home: 'Победител Група D', away: 'Трети Група B/E/F/I/J', oddsH: 2.00, oddsD: 3.00, oddsA: 3.00, status: 'upcoming', resultHome: null, resultAway: null },
+  { id: 89, date: '04 Юли 2026', time: '22:00', home: 'Победител Мач 73', away: 'Победител Мач 75', oddsH: 2.00, oddsD: 3.00, oddsA: 3.00, status: 'upcoming', resultHome: null, resultAway: null },
+  { id: 90, date: '04 Юли 2026', time: '18:00', home: 'Победител Мач 74', away: 'Победител Мач 76', oddsH: 2.00, oddsD: 3.00, oddsA: 3.00, status: 'upcoming', resultHome: null, resultAway: null },
+  { id: 91, date: '05 Юли 2026', time: '22:00', home: 'Победител Мач 77', away: 'Победител Мач 79', oddsH: 2.00, oddsD: 3.00, oddsA: 3.00, status: 'upcoming', resultHome: null, resultAway: null },
+  { id: 92, date: '05 Юли 2026', time: '18:00', home: 'Победител Мач 78', away: 'Победител Мач 80', oddsH: 2.00, oddsD: 3.00, oddsA: 3.00, status: 'upcoming', resultHome: null, resultAway: null }
 ];
 
 // Помощна функция за генериране на сигурен SHA-256 хеш на паролата в браузъра
@@ -232,6 +242,56 @@ export default function App() {
     setMatches(updatedMatches);
     setUsers(newUsers);
     syncData(newUsers, updatedMatches);
+  };
+
+  const handleCSVUpload = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+          try {
+              const text = event.target.result;
+              // Разделяме по редове
+              const rows = text.split(/\r?\n/).filter(row => row.trim() !== '');
+              const newMatchesData = [];
+
+              // Пропускаме първия ред (заглавната лента)
+              for (let i = 1; i < rows.length; i++) {
+                  const cols = rows[i].split(',');
+
+                  if (cols.length >= 10) {
+                      const id = parseInt(cols[0]);
+                      if (isNaN(id)) continue;
+
+                      newMatchesData.push({
+                          id: id,
+                          date: cols[1],
+                          time: '-', // Тъй като в CSV файла няма час
+                          home: cols[4],
+                          away: cols[5],
+                          oddsH: parseFloat(cols[7]) || 1.00,
+                          oddsD: parseFloat(cols[8]) || 1.00,
+                          oddsA: parseFloat(cols[9]) || 1.00,
+                          status: 'upcoming',
+                          resultHome: null,
+                          resultAway: null
+                      });
+                  }
+              }
+
+              if (newMatchesData.length > 0) {
+                  setMatches(newMatchesData);
+                  await syncData(null, newMatchesData); // Обновяваме базата данни
+                  setDialog({ isOpen: true, type: 'alert', message: `Успешно качени и запазени ${newMatchesData.length} мача от файла!` });
+              } else {
+                  setDialog({ isOpen: true, type: 'alert', message: 'Не бяха намерени валидни мачове във файла. Провери формата.' });
+              }
+          } catch (err) {
+              setDialog({ isOpen: true, type: 'alert', message: 'Възникна грешка при четене на файла.' });
+          }
+      };
+      reader.readAsText(file);
   };
 
   // Екран за зареждане
@@ -511,6 +571,7 @@ export default function App() {
              <div className="flex gap-2 mb-6">
                 <button onClick={() => setAdminSubTab('results')} className={`flex-1 py-2 rounded-lg font-semibold transition-colors ${adminSubTab === 'results' ? 'bg-slate-700 text-white' : 'bg-slate-800 text-slate-400'}`}>Резултати</button>
                 <button onClick={() => setAdminSubTab('players')} className={`flex-1 py-2 rounded-lg font-semibold transition-colors ${adminSubTab === 'players' ? 'bg-rose-900/50 text-rose-200' : 'bg-slate-800 text-slate-400'}`}>Играчи</button>
+                <button onClick={() => setAdminSubTab('schedule')} className={`flex-1 py-2 rounded-lg font-semibold transition-colors ${adminSubTab === 'schedule' ? 'bg-indigo-900/50 text-indigo-200' : 'bg-slate-800 text-slate-400'}`}>Програма</button>
              </div>
 
              {adminSubTab === 'results' && (
@@ -624,6 +685,23 @@ export default function App() {
                          ))}
                          {users.length === 0 && <div className="text-center text-slate-500 text-sm">Няма регистрирани играчи.</div>}
                      </div>
+                 </div>
+             )}
+
+             {adminSubTab === 'schedule' && (
+                 <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 text-center">
+                     <h3 className="font-bold text-indigo-400 mb-4 flex items-center justify-center gap-2">
+                         Вмъкване на програма (CSV)
+                     </h3>
+                     <p className="text-sm text-slate-400 mb-6">
+                         Качи твоя .csv файл тук. Това автоматично ще изтрие старите мачове и ще зареди всички реални мачове и коефициенти от файла за всички играчи!
+                     </p>
+                     <input
+                         type="file"
+                         accept=".csv"
+                         onChange={handleCSVUpload}
+                         className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer"
+                     />
                  </div>
              )}
           </div>
