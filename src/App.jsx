@@ -235,7 +235,7 @@ export default function App() {
 
       <main className="p-4 max-w-2xl mx-auto">
         
-        {}
+        {/* Бутони Предстоящи / История */}
         {activeTab === 'matches' && (
           <div className="flex gap-2 mb-4">
               <button 
@@ -253,102 +253,119 @@ export default function App() {
           </div>
         )}
 
+        {/* Списък с мачове */}
         {activeTab === 'matches' && matches
           .filter(m => !m.home.startsWith('Победител') && !m.home.startsWith('Втори') && !m.home.startsWith('Трети') && !m.home.startsWith('Загубил'))
           .filter(m => playerMatchTab === 'active' ? m.status !== 'finished' : m.status === 'finished')
           .sort((a, b) => playerMatchTab === 'history' ? b.id - a.id : a.id - b.id)
-          .map(m => (
-          <div key={m.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 mb-4 shadow-sm relative overflow-hidden">
-            <div className="text-xs text-slate-400 mb-3 flex justify-between">
-              <span>{m.group}</span>
-              <span>{m.date} | {m.time} ч.</span>
-            </div>
-            
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-right w-1/3">
-                 <div className="font-bold text-lg sm:text-xl truncate" title={m.home}>{m.home}</div>
-                 <div className="text-xs text-slate-500 mt-1">{m.oddsH.toFixed(2)}</div>
-              </div>
-              
-              <div className="w-1/3 flex justify-center items-center gap-2">
-                {m.status === 'finished' ? (
-                  <div className="bg-slate-900 px-4 py-2 rounded-lg font-mono text-xl font-bold text-emerald-400 border border-emerald-500/30">
-                    {m.resultHome} : {m.resultAway}
-                  </div>
-                ) : currentUser !== 'Admin' ? (
-                  <div className="flex gap-2 bg-slate-900 p-1.5 rounded-xl border border-slate-700">
-                    <input 
-                      type="number" min="0" max="99" maxLength="2"
-                      value={users.find(u=>u.name === currentUser)?.predictions[m.id]?.h ?? ''}
-                      onChange={(e) => {
-                         const val = e.target.value;
-                         if(val.length <= 2) handlePrediction(m.id, val, users.find(u=>u.name === currentUser)?.predictions[m.id]?.a ?? '');
-                      }}
-                      className="w-11 h-10 bg-slate-800 rounded-lg text-center font-bold text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                    <span className="text-slate-500 self-center">-</span>
-                    <input 
-                      type="number" min="0" max="99" maxLength="2"
-                      value={users.find(u=>u.name === currentUser)?.predictions[m.id]?.a ?? ''}
-                      onChange={(e) => {
-                         const val = e.target.value;
-                         if(val.length <= 2) handlePrediction(m.id, users.find(u=>u.name === currentUser)?.predictions[m.id]?.h ?? '', val);
-                      }}
-                      className="w-11 h-10 bg-slate-800 rounded-lg text-center font-bold text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                  </div>
-                ) : (
-                    <div className="text-slate-500 text-sm">Очаква се...</div>
-                )}
-              </div>
+          .map(m => {
+            // Изчистена и безопасна логика за вземане на собствената прогноза
+            const myUser = users.find(u => u.name === currentUser);
+            const myPred = myUser?.predictions?.[m.id] || { h: '', a: '' };
 
-              <div className="text-left w-1/3">
-                 <div className="font-bold text-lg sm:text-xl truncate" title={m.away}>{m.away}</div>
-                 <div className="text-xs text-slate-500 mt-1">{m.oddsA.toFixed(2)}</div>
-              </div>
-            </div>
-            
-            <div className="text-center">
-                 <div className="text-xs text-slate-500 mb-2">X: {m.oddsD.toFixed(2)}</div>
-            </div>
+            return (
+              <div key={m.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 mb-4 shadow-sm relative overflow-hidden">
+                <div className="text-xs text-slate-400 mb-3 flex justify-between">
+                  <span>{m.group}</span>
+                  <span>{m.date} | {m.time} ч.</span>
+                </div>
+                
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-right w-1/3">
+                     <div className="font-bold text-lg sm:text-xl truncate" title={m.home}>{m.home}</div>
+                     <div className="text-xs text-slate-500 mt-1">{m.oddsH.toFixed(2)}</div>
+                  </div>
+                  
+                  <div className="w-1/3 flex justify-center items-center gap-2">
+                    {m.status === 'finished' ? (
+                      <div className="bg-slate-900 px-4 py-2 rounded-lg font-mono text-xl font-bold text-emerald-400 border border-emerald-500/30">
+                        {m.resultHome} : {m.resultAway}
+                      </div>
+                    ) : currentUser !== 'Admin' ? (
+                      <div className="flex gap-2 bg-slate-900 p-1.5 rounded-xl border border-slate-700">
+                        <input 
+                          type="number" min="0" max="99" maxLength="2"
+                          value={myPred.h}
+                          onChange={(e) => {
+                             const val = e.target.value;
+                             if(val.length <= 2) handlePrediction(m.id, val, myPred.a);
+                          }}
+                          className="w-11 h-10 bg-slate-800 rounded-lg text-center font-bold text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <span className="text-slate-500 self-center">-</span>
+                        <input 
+                          type="number" min="0" max="99" maxLength="2"
+                          value={myPred.a}
+                          onChange={(e) => {
+                             const val = e.target.value;
+                             if(val.length <= 2) handlePrediction(m.id, myPred.h, val);
+                          }}
+                          className="w-11 h-10 bg-slate-800 rounded-lg text-center font-bold text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                      </div>
+                    ) : (
+                        <div className="text-slate-500 text-sm">Очаква се...</div>
+                    )}
+                  </div>
 
-            {/* Other predictions view */}
-            <div className="mt-4 pt-3 border-t border-slate-700/50">
-               <div className="text-xs text-slate-500 mb-2 uppercase tracking-wide">Прогнози на колегите:</div>
-               <div className="flex flex-wrap gap-2">
-                 {users.filter(u => u.name !== currentUser && u.predictions[m.id]).map(u => (
-                   <div key={u.name} className="bg-slate-900/50 rounded-md px-2 py-1 text-xs flex gap-1 border border-slate-800">
-                     <span className="text-slate-400">{u.name}:</span>
-                     {m.status === 'finished' ? (
-                          // Добавяме предпазна проверка тук, за да не гърми, ако някой е въвел само една цифра
-                          u.predictions[m.id].h !== '' && u.predictions[m.id].a !== '' ? (
-                              <span className={calculatePoints(m, u.predictions[m.id]) > 0 ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
-                                  {u.predictions[m.id].h}-{u.predictions[m.id].a} 
-                                  {calculatePoints(m, u.predictions[m.id]) > 0 && ` (+${calculatePoints(m, u.predictions[m.id])})`}
-                              </span>
-                          ) : (
-                              <span className="text-slate-500">Непълна</span>
-                          )
-                     ) : (
-                          <span className="text-slate-600 italic">Скрито</span>
-                     )}
+                  <div className="text-left w-1/3">
+                     <div className="font-bold text-lg sm:text-xl truncate" title={m.away}>{m.away}</div>
+                     <div className="text-xs text-slate-500 mt-1">{m.oddsA.toFixed(2)}</div>
+                  </div>
+                </div>
+                
+                <div className="text-center">
+                     <div className="text-xs text-slate-500 mb-2">X: {m.oddsD.toFixed(2)}</div>
+                </div>
+
+                {/* Безопасно рендиране на прогнозите на колегите */}
+                <div className="mt-4 pt-3 border-t border-slate-700/50">
+                   <div className="text-xs text-slate-500 mb-2 uppercase tracking-wide">Прогнози на колегите:</div>
+                   <div className="flex flex-wrap gap-2">
+                     {users
+                        .filter(u => u.name !== currentUser && u.predictions?.[m.id])
+                        .map(u => {
+                           const pred = u.predictions[m.id];
+                           const isFinished = m.status === 'finished';
+                           const isComplete = pred.h !== '' && pred.a !== '';
+                           const pts = calculatePoints(m, pred);
+
+                           return (
+                             <div key={u.name} className="bg-slate-900/50 rounded-md px-2 py-1 text-xs flex gap-1 border border-slate-800">
+                               <span className="text-slate-400">{u.name}:</span>
+                               {isFinished ? (
+                                    isComplete ? (
+                                        <span className={pts > 0 ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
+                                            {pred.h}-{pred.a} 
+                                            {pts > 0 ? ` (+${pts})` : ''}
+                                        </span>
+                                    ) : (
+                                        <span className="text-slate-500">Непълна</span>
+                                    )
+                               ) : (
+                                    <span className="text-slate-600 italic">Скрито</span>
+                               )}
+                             </div>
+                           );
+                        })}
+                     
+                     {/* Съобщение, ако никой не е прогнозирал (безопасно изписване) */}
+                     {users.filter(u => u.name !== currentUser && u.predictions?.[m.id]).length === 0 ? (
+                         <span className="text-xs text-slate-600 italic">Все още няма прогнози.</span>
+                     ) : null}
                    </div>
-                 ))}
-                 {users.filter(u => u.name !== currentUser && u.predictions[m.id]).length === 0 && (
-                     <span className="text-xs text-slate-600 italic">Все още няма прогнози.</span>
-                 )}
-               </div>
-            </div>
-          </div>
-        ))}
+                </div>
+              </div>
+          )})}
         
+        {/* Съобщение, ако списъкът е празен */}
         {activeTab === 'matches' && matches.filter(m => !m.home.startsWith('Победител') && !m.home.startsWith('Втори')).filter(m => playerMatchTab === 'active' ? m.status !== 'finished' : m.status === 'finished').length === 0 && (
            <div className="text-center text-slate-500 py-8 bg-slate-800 rounded-xl border border-slate-700 shadow-sm">
                {playerMatchTab === 'active' ? 'Няма предстоящи мачове в този списък.' : 'Все още няма завършили мачове.'}
            </div>
         )}
 
-        {}
+        {/* СТАНДИНГИ (Класиране) */}
         {activeTab === 'standings' && (
           <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-lg">
              <div className="bg-slate-700 p-4 font-bold flex text-slate-300">
@@ -364,7 +381,7 @@ export default function App() {
                    <div className={`flex-1 font-semibold ${u.name === currentUser ? 'text-emerald-400' : 'text-slate-200'}`}>
                       {u.name}
                       <div className="text-xs text-slate-500 font-normal mt-0.5">
-                          {Object.keys(u.predictions).length} прогнозирани мача
+                          {Object.keys(u.predictions || {}).length} прогнозирани мача
                       </div>
                    </div>
                    <div className="w-20 text-center font-mono font-bold text-lg text-emerald-400">
@@ -375,7 +392,7 @@ export default function App() {
           </div>
         )}
 
-        {/* RULES TAB */}
+        {/* ПРАВИЛА */}
         {activeTab === 'rules' && (
            <div className="space-y-4">
               <div className="bg-slate-800 p-5 rounded-xl border border-slate-700">
@@ -410,7 +427,7 @@ export default function App() {
            </div>
         )}
 
-        {}
+        {/* АДМИН ПАНЕЛ */}
         {activeTab === 'admin' && isAdmin && (
            <div className="space-y-4">
               <div className="bg-slate-800 p-4 rounded-xl border border-rose-900/50 shadow-[0_0_15px_rgba(225,29,72,0.1)]">
@@ -461,13 +478,11 @@ export default function App() {
                                     ) : (
                                         <form onSubmit={(e) => {
                                             e.preventDefault();
-                                            // Извличане на стойностите директно от елементите на формата по име
                                             const hVal = e.target.elements.homeResult.value;
                                             const aVal = e.target.elements.awayResult.value;
                                             const h = parseInt(hVal);
                                             const a = parseInt(aVal);
                                             
-                                            // Проверка дали са въведени валидни числа
                                             if(!isNaN(h) && !isNaN(a)) {
                                               publishResult(m.id, h, a);
                                             } else {
@@ -493,7 +508,7 @@ export default function App() {
                              <div key={u.name} className="bg-slate-900 p-3 rounded-lg border border-slate-700 mb-2 flex items-center justify-between">
                                  <div>
                                      <div className="font-bold text-white">{u.name}</div>
-                                     <div className="text-xs text-slate-400">Прогнози: {Object.keys(u.predictions).length} | Точки: {u.points}</div>
+                                     <div className="text-xs text-slate-400">Прогнози: {Object.keys(u.predictions || {}).length} | Точки: {u.points}</div>
                                  </div>
                                  <div className="flex gap-2">
                                      <button 
@@ -539,7 +554,7 @@ export default function App() {
 
       </main>
 
-      {}
+      {/* Навигация */}
       <nav className="fixed bottom-0 w-full bg-slate-800 border-t border-slate-700 flex justify-around p-2 pb-safe max-w-2xl left-1/2 -translate-x-1/2">
         <NavButton active={activeTab==='matches'} onClick={() => setActiveTab('matches')} icon={<Swords size={20}/>} label="Мачове" />
         <NavButton active={activeTab==='standings'} onClick={() => setActiveTab('standings')} icon={<Trophy size={20}/>} label="Класиране" />
@@ -547,7 +562,7 @@ export default function App() {
         {isAdmin && <NavButton active={activeTab==='admin'} onClick={() => setActiveTab('admin')} icon={<Lock size={20} className="text-rose-400"/>} label="Админ" />}
       </nav>
 
-      {/* Custom Dialog Modal */}
+      {/* Модален прозорец (Dialog) */}
       {dialog.isOpen && (
           <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4">
               <div className="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700 w-full max-w-sm text-center">
