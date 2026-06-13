@@ -78,12 +78,9 @@ export default function App() {
       if (u.name === currentUser) {
         const currentPredictions = { ...u.predictions };
         
-        // Ако и двете полета са празни (или изтрити), премахваме изцяло прогнозата за този мач
         if (homeStr === '' && awayStr === '') {
             delete currentPredictions[matchId];
         } else {
-            // В противен случай я запазваме, като преобразуваме в число само ако не е празно.
-            // Запазваме като низ, ако е празно, за да може input полето да се изчисти
             currentPredictions[matchId] = { 
                 h: homeStr === '' ? '' : parseInt(homeStr), 
                 a: awayStr === '' ? '' : parseInt(awayStr) 
@@ -97,7 +94,9 @@ export default function App() {
 
   const calculatePoints = (match, prediction) => {
     if (!prediction) return 0;
-    // Проверка дали прогнозата е пълна (има и двете цифри и те са числа)
+    
+    // ЗАЩИТА: Ако прогнозата е повреден запис в базата, връщаме 0 и не позволяваме счупване
+    if (typeof prediction.h === 'object' || typeof prediction.a === 'object') return 0;
     if (prediction.h === '' || prediction.a === '' || isNaN(prediction.h) || isNaN(prediction.a)) return 0;
 
     let pts = 0;
@@ -110,13 +109,11 @@ export default function App() {
         (prediction.h === prediction.a && match.resultHome === match.resultAway)
     ) pts = 1;
 
-    // UNDERDOG BONUS - Поправен алгоритъм
-    // Бонус се дава САМО ако участникът е получил точки (т.е. е познал знака)
     let hasUnderdogBonus = false;
     if (pts > 0) {
-        if (match.resultHome > match.resultAway && match.oddsH >= 4.00) hasUnderdogBonus = true; // Домакин изненада
-        else if (match.resultAway > match.resultHome && match.oddsA >= 4.00) hasUnderdogBonus = true; // Гост изненада
-        else if (match.resultHome === match.resultAway && match.oddsD >= 4.00) hasUnderdogBonus = true; // Равен изненада
+        if (match.resultHome > match.resultAway && match.oddsH >= 4.00) hasUnderdogBonus = true;
+        else if (match.resultAway > match.resultHome && match.oddsA >= 4.00) hasUnderdogBonus = true;
+        else if (match.resultHome === match.resultAway && match.oddsD >= 4.00) hasUnderdogBonus = true;
     }
 
     if(hasUnderdogBonus) pts += 2;
@@ -259,9 +256,12 @@ export default function App() {
           .filter(m => playerMatchTab === 'active' ? m.status !== 'finished' : m.status === 'finished')
           .sort((a, b) => playerMatchTab === 'history' ? b.id - a.id : a.id - b.id)
           .map(m => {
-            // Изчистена и безопасна логика за вземане на собствената прогноза
             const myUser = users.find(u => u.name === currentUser);
-            const myPred = myUser?.predictions?.[m.id] || { h: '', a: '' };
+            const rawMyPred = myUser?.predictions?.[m.id] || { h: '', a: '' };
+            
+            // ЗАЩИТА: Гарантираме, че myPred.h и myPred.a са примитиви, а не обекти
+            const safeMyH = typeof rawMyPred.h === 'object' ? '' : (rawMyPred.h ?? '');
+            const safeMyA = typeof rawMyPred.a === 'object' ? '' : (rawMyPred.a ?? '');
 
             return (
               <div key={m.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 mb-4 shadow-sm relative overflow-hidden">
@@ -285,20 +285,20 @@ export default function App() {
                       <div className="flex gap-2 bg-slate-900 p-1.5 rounded-xl border border-slate-700">
                         <input 
                           type="number" min="0" max="99" maxLength="2"
-                          value={myPred.h}
+                          value={safeMyH}
                           onChange={(e) => {
                              const val = e.target.value;
-                             if(val.length <= 2) handlePrediction(m.id, val, myPred.a);
+                             if(val.length <= 2) handlePrediction(m.id, val, safeMyA);
                           }}
                           className="w-11 h-10 bg-slate-800 rounded-lg text-center font-bold text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                         <span className="text-slate-500 self-center">-</span>
                         <input 
                           type="number" min="0" max="99" maxLength="2"
-                          value={myPred.a}
+                          value={safeMyA}
                           onChange={(e) => {
                              const val = e.target.value;
-                             if(val.length <= 2) handlePrediction(m.id, myPred.h, val);
+                             if(val.length <= 2) handlePrediction(m.id, safeMyH, val);
                           }}
                           className="w-11 h-10 bg-slate-800 rounded-lg text-center font-bold text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
@@ -327,7 +327,12 @@ export default function App() {
                         .map(u => {
                            const pred = u.predictions[m.id];
                            const isFinished = m.status === 'finished';
-                           const isComplete = pred.h !== '' && pred.a !== '';
+                           
+                           // ЗАЩИТА: Извличаме стойностите безопасно, за да не счупят React
+                           const safeH = typeof pred.h === 'object' ? '?' : pred.h;
+                           const safeA = typeof pred.a === 'object' ? '?' : pred.a;
+                           
+                           const isComplete = safeH !== '' && safeA !== '' && safeH !== '?';
                            const pts = calculatePoints(m, pred);
 
                            return (
@@ -336,7 +341,7 @@ export default function App() {
                                {isFinished ? (
                                     isComplete ? (
                                         <span className={pts > 0 ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
-                                            {pred.h}-{pred.a} 
+                                            {safeH}-{safeA} 
                                             {pts > 0 ? ` (+${pts})` : ''}
                                         </span>
                                     ) : (
@@ -349,7 +354,6 @@ export default function App() {
                            );
                         })}
                      
-                     {/* Съобщение, ако никой не е прогнозирал (безопасно изписване) */}
                      {users.filter(u => u.name !== currentUser && u.predictions?.[m.id]).length === 0 ? (
                          <span className="text-xs text-slate-600 italic">Все още няма прогнози.</span>
                      ) : null}
