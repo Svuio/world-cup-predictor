@@ -42,7 +42,6 @@ const INITIAL_MATCHES = [
   { id: 92, date: '05 Юли 2026', time: '18:00', home: 'Победител Мач 78', away: 'Победител Мач 80', oddsH: 2.00, oddsD: 3.00, oddsA: 3.00, status: 'upcoming', resultHome: null, resultAway: null }
 ];
 
-// Помощна функция за генериране на сигурен SHA-256 хеш на паролата в браузъра
 const hashPassword = async (password) => {
   const encoder = new TextEncoder();
   const data = encoder.encode(password);
@@ -56,7 +55,6 @@ export default function App() {
   const [fbUser, setFbUser] = useState(null);
   const [isSyncing, setIsSyncing] = useState(true);
 
-  // 1. Зареждане на Tailwind CSS
   useEffect(() => {
     if (document.getElementById('tailwind-cdn')) {
       setIsTailwindLoaded(true);
@@ -69,7 +67,6 @@ export default function App() {
     document.head.appendChild(script);
   }, []);
 
-  // 2. Инициализация на Firebase Auth
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -92,7 +89,6 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [matches, setMatches] = useState(INITIAL_MATCHES);
   
-  // 3. Синхронизация с базата данни в реално време
   useEffect(() => {
     if (!fbUser) return;
     const docRef = doc(db, 'artifacts', safeAppId, 'public', 'data', 'worldCupState', 'main');
@@ -133,7 +129,6 @@ export default function App() {
   const [adminSubTab, setAdminSubTab] = useState('active'); 
   const [dialog, setDialog] = useState({ isOpen: false, type: 'confirm', message: '', onConfirm: null });
 
-  // Състояние за формата за добавяне/редактиране на мачове
   const emptyMatchForm = { id: '', date: '', time: '', home: '', away: '', oddsH: '', oddsD: '', oddsA: '', isEditing: false };
   const [matchFormData, setMatchFormData] = useState(emptyMatchForm);
 
@@ -356,10 +351,8 @@ export default function App() {
       const existingMatchIndex = updatedMatches.findIndex(m => m.id === mId);
 
       if (existingMatchIndex >= 0) {
-          // Ако редактираме, запазваме стария статус и резултати, презаписваме само детайлите
           updatedMatches[existingMatchIndex] = { ...updatedMatches[existingMatchIndex], ...newMatchData };
       } else {
-          // Ако добавяме чисто нов мач
           newMatchData.status = 'upcoming';
           newMatchData.resultHome = null;
           newMatchData.resultAway = null;
@@ -373,7 +366,6 @@ export default function App() {
       setDialog({ isOpen: true, type: 'alert', message: 'Мачът е запазен успешно!' });
   };
 
-  // Екран за зареждане
   if (!isTailwindLoaded || isSyncing) {
       return (
           <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', fontFamily: 'sans-serif' }}>
@@ -483,6 +475,10 @@ export default function App() {
     );
   }
 
+  // Изчисляване на точките на текущия играч (изнесено извън JSX)
+  const currentUserData = users.find(u => u.name === currentUser);
+  const currentUserPoints = currentUserData ? currentUserData.points : 0;
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 pb-20">
       
@@ -496,7 +492,7 @@ export default function App() {
         <div className="flex items-center gap-4">
             {currentUser !== 'Admin' && (
                  <div className="bg-slate-900 px-3 py-1 rounded-full border border-slate-700 text-sm font-mono">
-                     <span className="text-emerald-400">{users.find(u => u.name === currentUser)?.points || 0}</span> т.
+                     <span className="text-emerald-400">{currentUserPoints}</span> т.
                  </div>
             )}
             <button onClick={handleLogout} className="text-slate-400 hover:text-red-400 transition-colors" title="Изход">
@@ -580,21 +576,24 @@ export default function App() {
                     {m.status === 'started' && <span className="text-emerald-400 flex items-center gap-1 font-bold animate-pulse">На живо (Заключени)</span>}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {users.filter(u => u.name !== currentUser && u.predictions[m.id]).map(u => {
-                      const p = u.predictions[m.id];
-                      const hasFullPred = (p.h !== '' && p.a !== '');
-                      const isVisible = m.status === 'finished' || m.status === 'started';
-                      
-                      return (
-                      <div key={u.name} className="bg-slate-900/50 text-xs px-2 py-1 rounded border border-slate-700/50 flex gap-1 items-center">
-                        <span className="font-semibold text-slate-300">{u.name}:</span>
-                        {isVisible ? (
-                            <span className="text-emerald-400">{hasFullPred ? `${p.h}-${p.a}` : 'Неп.'}</span>
-                        ) : (
-                            <span className="text-slate-500">?-?</span>
-                        )}
-                      </div>
-                    )})}
+                    {users
+                      .filter(u => u.name !== currentUser && u.predictions && u.predictions[m.id])
+                      .map(u => {
+                        const p = u.predictions[m.id];
+                        const hasFullPred = (p.h !== '' && p.a !== '');
+                        const isVisible = m.status === 'finished' || m.status === 'started';
+                        
+                        return (
+                          <div key={u.name} className="bg-slate-900/50 text-xs px-2 py-1 rounded border border-slate-700/50 flex gap-1 items-center">
+                            <span className="font-semibold text-slate-300">{u.name}:</span>
+                            {isVisible ? (
+                                <span className="text-emerald-400">{hasFullPred ? `${p.h}-${p.a}` : 'Неп.'}</span>
+                            ) : (
+                                <span className="text-slate-500">?-?</span>
+                            )}
+                          </div>
+                        );
+                    })}
                   </div>
                 </div>
               </div>
@@ -753,7 +752,7 @@ export default function App() {
                 <div className="space-y-3">
                     {matches
                         .filter(m => m.status === 'finished')
-                        .sort((a,b) => b.id - a.id) // Сортираме от най-скорошните към по-старите
+                        .sort((a,b) => b.id - a.id)
                         .map(m => (
                     <div key={m.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-sm flex flex-col gap-3">
                         <div className="flex justify-between text-xs text-slate-400">
@@ -806,7 +805,7 @@ export default function App() {
                              <div key={u.name} className="flex justify-between items-center bg-slate-900 p-3 rounded-xl border border-slate-700/50">
                                  <div>
                                      <div className="font-bold">{u.name}</div>
-                                     <div className="text-xs text-slate-500">Прогнози: {Object.keys(u.predictions).length} | {u.points} т.</div>
+                                     <div className="text-xs text-slate-500">Прогнози: {Object.keys(u.predictions || {}).length} | {u.points} т.</div>
                                  </div>
                                  <div className="flex gap-2">
                                      <button 
