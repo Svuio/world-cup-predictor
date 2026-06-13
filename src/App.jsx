@@ -95,7 +95,6 @@ export default function App() {
   const calculatePoints = (match, prediction) => {
     if (!prediction) return 0;
     
-    // ЗАЩИТА: Ако прогнозата е повреден запис в базата, връщаме 0 и не позволяваме счупване
     if (typeof prediction.h === 'object' || typeof prediction.a === 'object') return 0;
     if (prediction.h === '' || prediction.a === '' || isNaN(prediction.h) || isNaN(prediction.a)) return 0;
 
@@ -259,7 +258,6 @@ export default function App() {
             const myUser = users.find(u => u.name === currentUser);
             const rawMyPred = myUser?.predictions?.[m.id] || { h: '', a: '' };
             
-            // ЗАЩИТА: Гарантираме, че myPred.h и myPred.a са примитиви, а не обекти
             const safeMyH = typeof rawMyPred.h === 'object' ? '' : (rawMyPred.h ?? '');
             const safeMyA = typeof rawMyPred.a === 'object' ? '' : (rawMyPred.a ?? '');
 
@@ -318,17 +316,18 @@ export default function App() {
                      <div className="text-xs text-slate-500 mb-2">X: {m.oddsD.toFixed(2)}</div>
                 </div>
 
-                {/* Безопасно рендиране на прогнозите на колегите */}
+                {/* НОВ, КРАСИВ И ПОДРЕДЕН ИЗГЛЕД ЗА ПРОГНОЗИТЕ */}
                 <div className="mt-4 pt-3 border-t border-slate-700/50">
                    <div className="text-xs text-slate-500 mb-2 uppercase tracking-wide">Прогнози на колегите:</div>
-                   <div className="flex flex-wrap gap-2">
+                   
+                   {/* Използваме Grid (мрежа) за да изравним колонките */}
+                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                      {users
                         .filter(u => u.name !== currentUser && u.predictions?.[m.id])
                         .map(u => {
                            const pred = u.predictions[m.id];
                            const isFinished = m.status === 'finished';
                            
-                           // ЗАЩИТА: Извличаме стойностите безопасно, за да не счупят React
                            const safeH = typeof pred.h === 'object' ? '?' : pred.h;
                            const safeA = typeof pred.a === 'object' ? '?' : pred.a;
                            
@@ -336,28 +335,30 @@ export default function App() {
                            const pts = calculatePoints(m, pred);
 
                            return (
-                             <div key={u.name} className="bg-slate-900/50 rounded-md px-2 py-1 text-xs flex gap-1 border border-slate-800">
-                               <span className="text-slate-400">{u.name}:</span>
+                             <div key={u.name} className="bg-slate-900/80 rounded-lg p-2 text-xs flex justify-between items-center border border-slate-700">
+                               <span className="text-slate-300 font-medium truncate pr-2 max-w-[60%]">{u.name}</span>
                                {isFinished ? (
                                     isComplete ? (
-                                        <span className={pts > 0 ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
-                                            {safeH}-{safeA} 
-                                            {pts > 0 ? ` (+${pts})` : ''}
-                                        </span>
+                                        <div className="flex flex-col items-end">
+                                            <span className={pts > 0 ? 'text-emerald-400 font-bold' : 'text-slate-400 font-mono'}>
+                                                {safeH} - {safeA}
+                                            </span>
+                                            {pts > 0 && <span className="text-[9px] text-emerald-500/80">+{pts}т.</span>}
+                                        </div>
                                     ) : (
-                                        <span className="text-slate-500">Непълна</span>
+                                        <span className="text-slate-500 text-[10px] uppercase">Непълна</span>
                                     )
                                ) : (
-                                    <span className="text-slate-600 italic">Скрито</span>
+                                    <span className="text-slate-500 text-[10px] uppercase tracking-wider flex items-center gap-1"><Lock size={10}/> Скрито</span>
                                )}
                              </div>
                            );
                         })}
-                     
-                     {users.filter(u => u.name !== currentUser && u.predictions?.[m.id]).length === 0 ? (
-                         <span className="text-xs text-slate-600 italic">Все още няма прогнози.</span>
-                     ) : null}
                    </div>
+                   
+                   {users.filter(u => u.name !== currentUser && u.predictions?.[m.id]).length === 0 ? (
+                       <span className="text-xs text-slate-600 italic block mt-1">Все още няма прогнози.</span>
+                   ) : null}
                 </div>
               </div>
           )})}
