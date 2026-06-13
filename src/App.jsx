@@ -130,8 +130,12 @@ export default function App() {
   const [loginPass, setLoginPass] = useState('');
   const [adminPin, setAdminPin] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
-  const [adminSubTab, setAdminSubTab] = useState('active'); // Новите табове: active, history, players, schedule
+  const [adminSubTab, setAdminSubTab] = useState('active'); 
   const [dialog, setDialog] = useState({ isOpen: false, type: 'confirm', message: '', onConfirm: null });
+
+  // Състояние за формата за добавяне/редактиране на мачове
+  const emptyMatchForm = { id: '', date: '', time: '', home: '', away: '', oddsH: '', oddsD: '', oddsA: '', isEditing: false };
+  const [matchFormData, setMatchFormData] = useState(emptyMatchForm);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -176,7 +180,6 @@ export default function App() {
   };
 
   const handlePrediction = (matchId, h, a) => {
-    // Проверка дали мачът вече не е започнал (само допълнителна защита)
     const currentMatch = matches.find(m => m.id === matchId);
     if (currentMatch && currentMatch.status !== 'upcoming') return;
 
@@ -239,7 +242,6 @@ export default function App() {
   const revertToStarted = (matchId) => {
     const updatedMatches = matches.map(m => m.id === matchId ? { ...m, status: 'started', resultHome: null, resultAway: null } : m);
     
-    // Трябва да преизчислим точките на всички, защото сме премахнали резултата
     const newUsers = users.map(user => {
       let totalPoints = 0;
       updatedMatches.filter(m => m.status === 'finished').forEach(m => {
@@ -280,11 +282,14 @@ export default function App() {
               const rows = text.split(/\r?\n/).filter(row => row.trim() !== '');
               const newMatchesData = [];
 
-              for (let i = 1; i < rows.length; i++) {
-                  const cols = rows[i].split(',');
+              const delimiter = rows[0].includes(';') ? ';' : ',';
 
-                  if (cols.length >= 10) {
-                      const id = parseInt(cols[0]);
+              for (let i = 1; i < rows.length; i++) {
+                  const cols = rows[i].split(delimiter);
+                  const cleanCols = cols.map(c => c.replace(/^"|"$/g, '').trim());
+
+                  if (cleanCols.length >= 10) {
+                      const id = parseInt(cleanCols[0]);
                       if (isNaN(id)) continue;
                       
                       const existingMatch = matches.find(m => m.id === id);
@@ -292,23 +297,23 @@ export default function App() {
                       if (existingMatch) {
                           newMatchesData.push({
                               ...existingMatch, 
-                              date: cols[1],    
-                              home: cols[4],
-                              away: cols[5],
-                              oddsH: parseFloat(cols[7]) || 1.00,
-                              oddsD: parseFloat(cols[8]) || 1.00,
-                              oddsA: parseFloat(cols[9]) || 1.00
+                              date: cleanCols[1],    
+                              home: cleanCols[4],
+                              away: cleanCols[5],
+                              oddsH: parseFloat(cleanCols[7].replace(',', '.')) || 1.00,
+                              oddsD: parseFloat(cleanCols[8].replace(',', '.')) || 1.00,
+                              oddsA: parseFloat(cleanCols[9].replace(',', '.')) || 1.00
                           });
                       } else {
                           newMatchesData.push({
                               id: id,
-                              date: cols[1],
+                              date: cleanCols[1],
                               time: '-', 
-                              home: cols[4],
-                              away: cols[5],
-                              oddsH: parseFloat(cols[7]) || 1.00,
-                              oddsD: parseFloat(cols[8]) || 1.00,
-                              oddsA: parseFloat(cols[9]) || 1.00,
+                              home: cleanCols[4],
+                              away: cleanCols[5],
+                              oddsH: parseFloat(cleanCols[7].replace(',', '.')) || 1.00,
+                              oddsD: parseFloat(cleanCols[8].replace(',', '.')) || 1.00,
+                              oddsA: parseFloat(cleanCols[9].replace(',', '.')) || 1.00,
                               status: 'upcoming',
                               resultHome: null,
                               resultAway: null
@@ -329,6 +334,43 @@ export default function App() {
           }
       };
       reader.readAsText(file);
+  };
+
+  const handleSaveMatch = async (e) => {
+      e.preventDefault();
+      const mId = parseInt(matchFormData.id);
+      if (isNaN(mId)) return;
+
+      const newMatchData = {
+          id: mId,
+          date: matchFormData.date,
+          time: matchFormData.time || '-',
+          home: matchFormData.home,
+          away: matchFormData.away,
+          oddsH: parseFloat(matchFormData.oddsH) || 1.00,
+          oddsD: parseFloat(matchFormData.oddsD) || 1.00,
+          oddsA: parseFloat(matchFormData.oddsA) || 1.00,
+      };
+
+      let updatedMatches = [...matches];
+      const existingMatchIndex = updatedMatches.findIndex(m => m.id === mId);
+
+      if (existingMatchIndex >= 0) {
+          // Ако редактираме, запазваме стария статус и резултати, презаписваме само детайлите
+          updatedMatches[existingMatchIndex] = { ...updatedMatches[existingMatchIndex], ...newMatchData };
+      } else {
+          // Ако добавяме чисто нов мач
+          newMatchData.status = 'upcoming';
+          newMatchData.resultHome = null;
+          newMatchData.resultAway = null;
+          updatedMatches.push(newMatchData);
+      }
+
+      setMatches(updatedMatches);
+      await syncData(null, updatedMatches);
+      
+      setMatchFormData(emptyMatchForm);
+      setDialog({ isOpen: true, type: 'alert', message: 'Мачът е запазен успешно!' });
   };
 
   // Екран за зареждане
@@ -467,90 +509,96 @@ export default function App() {
         
         {activeTab === 'matches' && matches
           .filter(m => !m.home.startsWith('Победител') && !m.home.startsWith('Втори') && !m.home.startsWith('Трети') && !m.home.startsWith('Загубил'))
-          .map(m => (
-          <div key={m.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 mb-4 shadow-sm relative overflow-hidden">
-            <div className="flex justify-between items-center mb-3 text-xs text-slate-400">
-              <span className="bg-slate-900 px-2 py-1 rounded border border-slate-700">Групова фаза</span>
-              <span>{m.date} | {m.time}</span>
-            </div>
-            
-            <div className="flex justify-between items-center mb-4">
-              <div className="text-right flex-1">
-                <div className="font-bold text-lg truncate">{m.home}</div>
-                <div className="text-xs text-emerald-500/70">{m.oddsH.toFixed(2)}</div>
-              </div>
-              
-              <div className="px-4 flex flex-col items-center">
-                {m.status === 'finished' ? (
-                  <div className="text-2xl font-black text-emerald-400 bg-slate-900 px-4 py-1 rounded-lg border border-emerald-900/50">
-                    {m.resultHome} : {m.resultAway}
-                  </div>
-                ) : m.status === 'started' ? (
-                  <div className="flex gap-2 bg-slate-900 p-1.5 rounded-xl border border-rose-900/50 shadow-[0_0_10px_rgba(225,29,72,0.2)]">
-                    <input disabled value={users.find(u=>u.name === currentUser)?.predictions[m.id]?.h ?? ''} className="w-11 h-10 bg-slate-800 rounded-lg text-center font-bold text-slate-500 opacity-80 cursor-not-allowed" />
-                    <span className="text-slate-600 self-center">-</span>
-                    <input disabled value={users.find(u=>u.name === currentUser)?.predictions[m.id]?.a ?? ''} className="w-11 h-10 bg-slate-800 rounded-lg text-center font-bold text-slate-500 opacity-80 cursor-not-allowed" />
-                  </div>
-                ) : currentUser !== 'Admin' ? (
-                  <div className="flex gap-2 bg-slate-900 p-1.5 rounded-xl border border-slate-700">
-                    <input 
-                      type="number" min="0" max="99" maxLength="2"
-                      value={users.find(u=>u.name === currentUser)?.predictions[m.id]?.h ?? ''}
-                      onChange={(e) => {
-                         const val = e.target.value;
-                         if(val.length <= 2) handlePrediction(m.id, val, users.find(u=>u.name === currentUser)?.predictions[m.id]?.a ?? '');
-                      }}
-                      className="w-11 h-10 bg-slate-800 rounded-lg text-center font-bold text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                    <span className="text-slate-500 self-center">-</span>
-                    <input 
-                      type="number" min="0" max="99" maxLength="2"
-                      value={users.find(u=>u.name === currentUser)?.predictions[m.id]?.a ?? ''}
-                      onChange={(e) => {
-                         const val = e.target.value;
-                         if(val.length <= 2) handlePrediction(m.id, users.find(u=>u.name === currentUser)?.predictions[m.id]?.h ?? '', val);
-                      }}
-                      className="w-11 h-10 bg-slate-800 rounded-lg text-center font-bold text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                  </div>
-                ) : (
-                    <div className="text-sm font-bold text-slate-500 bg-slate-900 px-3 py-1 rounded-lg">VS</div>
-                )}
-                <div className="text-xs text-slate-500 mt-1">X: {m.oddsD.toFixed(2)}</div>
-              </div>
-              
-              <div className="text-left flex-1">
-                <div className="font-bold text-lg truncate">{m.away}</div>
-                <div className="text-xs text-emerald-500/70">{m.oddsA.toFixed(2)}</div>
-              </div>
-            </div>
+          .map(m => {
+            const myUser = users.find(u => u.name === currentUser);
+            const myPred = (myUser && myUser.predictions && myUser.predictions[m.id]) ? myUser.predictions[m.id] : { h: '', a: '' };
+            const hVal = myPred.h !== undefined ? myPred.h : '';
+            const aVal = myPred.a !== undefined ? myPred.a : '';
 
-            <div className="mt-4 pt-3 border-t border-slate-700/50">
-              <div className="text-xs text-slate-400 mb-2 flex justify-between items-center">
-                <span>Прогнози на колегите:</span>
-                {m.status === 'upcoming' && <span className="text-rose-400/80 flex items-center gap-1"><Lock size={12}/> Скрити до мача</span>}
-                {m.status === 'started' && <span className="text-emerald-400 flex items-center gap-1 font-bold animate-pulse">На живо (Заключени)</span>}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {users.filter(u => u.name !== currentUser && u.predictions[m.id]).map(u => {
-                  const p = u.predictions[m.id];
-                  const hasFullPred = (p.h !== '' && p.a !== '');
-                  const isVisible = m.status === 'finished' || m.status === 'started';
-                  
-                  return (
-                  <div key={u.name} className="bg-slate-900/50 text-xs px-2 py-1 rounded border border-slate-700/50 flex gap-1 items-center">
-                    <span className="font-semibold text-slate-300">{u.name}:</span>
-                    {isVisible ? (
-                        <span className="text-emerald-400">{hasFullPred ? `${p.h}-${p.a}` : 'Неп.'}</span>
-                    ) : (
-                        <span className="text-slate-500">?-?</span>
-                    )}
+            return (
+              <div key={m.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 mb-4 shadow-sm relative overflow-hidden">
+                <div className="flex justify-between items-center mb-3 text-xs text-slate-400">
+                  <span className="bg-slate-900 px-2 py-1 rounded border border-slate-700">Групова фаза</span>
+                  <span>{m.date} | {m.time}</span>
+                </div>
+                
+                <div className="flex justify-between items-center mb-4">
+                  <div className="text-right flex-1">
+                    <div className="font-bold text-lg truncate">{m.home}</div>
+                    <div className="text-xs text-emerald-500/70">{m.oddsH.toFixed(2)}</div>
                   </div>
-                )})}
+                  
+                  <div className="px-4 flex flex-col items-center">
+                    {m.status === 'finished' ? (
+                      <div className="text-2xl font-black text-emerald-400 bg-slate-900 px-4 py-1 rounded-lg border border-emerald-900/50">
+                        {m.resultHome} : {m.resultAway}
+                      </div>
+                    ) : m.status === 'started' && currentUser !== 'Admin' ? (
+                      <div className="flex gap-2 bg-slate-900 p-1.5 rounded-xl border border-rose-900/50 shadow-lg shadow-rose-900/20">
+                        <input disabled value={hVal} className="w-11 h-10 bg-slate-800 rounded-lg text-center font-bold text-slate-500 opacity-80 cursor-not-allowed" />
+                        <span className="text-slate-600 self-center">-</span>
+                        <input disabled value={aVal} className="w-11 h-10 bg-slate-800 rounded-lg text-center font-bold text-slate-500 opacity-80 cursor-not-allowed" />
+                      </div>
+                    ) : currentUser !== 'Admin' ? (
+                      <div className="flex gap-2 bg-slate-900 p-1.5 rounded-xl border border-slate-700">
+                        <input 
+                          type="number" min="0" max="99" maxLength="2"
+                          value={hVal}
+                          onChange={(e) => {
+                             const val = e.target.value;
+                             if(val.length <= 2) handlePrediction(m.id, val, aVal);
+                          }}
+                          className="w-11 h-10 bg-slate-800 rounded-lg text-center font-bold text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <span className="text-slate-500 self-center">-</span>
+                        <input 
+                          type="number" min="0" max="99" maxLength="2"
+                          value={aVal}
+                          onChange={(e) => {
+                             const val = e.target.value;
+                             if(val.length <= 2) handlePrediction(m.id, hVal, val);
+                          }}
+                          className="w-11 h-10 bg-slate-800 rounded-lg text-center font-bold text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                      </div>
+                    ) : (
+                        <div className="text-sm font-bold text-slate-500 bg-slate-900 px-3 py-1 rounded-lg">VS</div>
+                    )}
+                    <div className="text-xs text-slate-500 mt-1">X: {m.oddsD.toFixed(2)}</div>
+                  </div>
+                  
+                  <div className="text-left flex-1">
+                    <div className="font-bold text-lg truncate">{m.away}</div>
+                    <div className="text-xs text-emerald-500/70">{m.oddsA.toFixed(2)}</div>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-700/50">
+                  <div className="text-xs text-slate-400 mb-2 flex justify-between items-center">
+                    <span>Прогнози на колегите:</span>
+                    {m.status === 'upcoming' && <span className="text-rose-400/80 flex items-center gap-1"><Lock size={12}/> Скрити до мача</span>}
+                    {m.status === 'started' && <span className="text-emerald-400 flex items-center gap-1 font-bold animate-pulse">На живо (Заключени)</span>}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {users.filter(u => u.name !== currentUser && u.predictions[m.id]).map(u => {
+                      const p = u.predictions[m.id];
+                      const hasFullPred = (p.h !== '' && p.a !== '');
+                      const isVisible = m.status === 'finished' || m.status === 'started';
+                      
+                      return (
+                      <div key={u.name} className="bg-slate-900/50 text-xs px-2 py-1 rounded border border-slate-700/50 flex gap-1 items-center">
+                        <span className="font-semibold text-slate-300">{u.name}:</span>
+                        {isVisible ? (
+                            <span className="text-emerald-400">{hasFullPred ? `${p.h}-${p.a}` : 'Неп.'}</span>
+                        ) : (
+                            <span className="text-slate-500">?-?</span>
+                        )}
+                      </div>
+                    )})}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        ))}
+          )})}
 
         {activeTab === 'standings' && (
           <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-xl">
@@ -616,7 +664,8 @@ export default function App() {
                 <button onClick={() => setAdminSubTab('active')} className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition-colors ${adminSubTab === 'active' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}>Активни</button>
                 <button onClick={() => setAdminSubTab('history')} className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition-colors ${adminSubTab === 'history' ? 'bg-slate-700 text-white' : 'bg-slate-800 text-slate-400'}`}>История</button>
                 <button onClick={() => setAdminSubTab('players')} className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition-colors ${adminSubTab === 'players' ? 'bg-rose-900/50 text-rose-200' : 'bg-slate-800 text-slate-400'}`}>Играчи</button>
-                <button onClick={() => setAdminSubTab('schedule')} className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition-colors ${adminSubTab === 'schedule' ? 'bg-indigo-900/50 text-indigo-200' : 'bg-slate-800 text-slate-400'}`}>Програма</button>
+                <button onClick={() => { setAdminSubTab('editor'); setMatchFormData(emptyMatchForm); }} className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition-colors ${adminSubTab === 'editor' ? 'bg-yellow-600 text-white' : 'bg-slate-800 text-slate-400'}`}>Редактор</button>
+                <button onClick={() => setAdminSubTab('schedule')} className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition-colors ${adminSubTab === 'schedule' ? 'bg-indigo-900/50 text-indigo-200' : 'bg-slate-800 text-slate-400'}`}>CSV Импорт</button>
              </div>
 
              {/* ТАБ АКТИВНИ: Предстоящи мачове и мачове на живо */}
@@ -748,6 +797,7 @@ export default function App() {
                 </div>
              )}
 
+             {/* ТАБ ИГРАЧИ */}
              {adminSubTab === 'players' && (
                  <div className="bg-slate-800 rounded-2xl border border-slate-700 p-4">
                      <h3 className="font-bold text-rose-400 mb-4 flex items-center gap-2"><Lock size={16}/> Мениджър на играчи</h3>
@@ -803,6 +853,99 @@ export default function App() {
                  </div>
              )}
 
+             {/* НОВ ТАБ: РЕДАКТОР */}
+             {adminSubTab === 'editor' && (
+                 <div className="bg-slate-800 rounded-2xl border border-slate-700 p-4">
+                     <h3 className="font-bold text-yellow-500 mb-4 flex items-center gap-2">Добави / Редактирай мач</h3>
+                     
+                     <form onSubmit={handleSaveMatch} className="bg-slate-900 p-4 rounded-xl border border-slate-700 mb-6 space-y-3">
+                         <div className="flex gap-2">
+                             <div className="w-1/3">
+                                 <label className="text-[10px] uppercase text-slate-500">ID (№)</label>
+                                 <input type="number" required value={matchFormData.id} onChange={e => setMatchFormData({...matchFormData, id: e.target.value})} disabled={matchFormData.isEditing} className="w-full bg-slate-800 rounded p-2 text-white border border-slate-600 text-sm disabled:opacity-50" />
+                             </div>
+                             <div className="w-1/3">
+                                 <label className="text-[10px] uppercase text-slate-500">Дата</label>
+                                 <input type="text" placeholder="ДД.ММ" required value={matchFormData.date} onChange={e => setMatchFormData({...matchFormData, date: e.target.value})} className="w-full bg-slate-800 rounded p-2 text-white border border-slate-600 text-sm" />
+                             </div>
+                             <div className="w-1/3">
+                                 <label className="text-[10px] uppercase text-slate-500">Час</label>
+                                 <input type="time" value={matchFormData.time} onChange={e => setMatchFormData({...matchFormData, time: e.target.value})} className="w-full bg-slate-800 rounded p-2 text-white border border-slate-600 text-sm" />
+                             </div>
+                         </div>
+                         
+                         <div className="flex gap-2">
+                             <div className="w-1/2">
+                                 <label className="text-[10px] uppercase text-slate-500">Домакин</label>
+                                 <input type="text" required value={matchFormData.home} onChange={e => setMatchFormData({...matchFormData, home: e.target.value})} className="w-full bg-slate-800 rounded p-2 text-white border border-slate-600 text-sm" />
+                             </div>
+                             <div className="w-1/2">
+                                 <label className="text-[10px] uppercase text-slate-500">Гост</label>
+                                 <input type="text" required value={matchFormData.away} onChange={e => setMatchFormData({...matchFormData, away: e.target.value})} className="w-full bg-slate-800 rounded p-2 text-white border border-slate-600 text-sm" />
+                             </div>
+                         </div>
+
+                         <div className="flex gap-2">
+                             <div className="w-1/3">
+                                 <label className="text-[10px] uppercase text-slate-500">Коеф. 1</label>
+                                 <input type="number" step="0.01" value={matchFormData.oddsH} onChange={e => setMatchFormData({...matchFormData, oddsH: e.target.value})} className="w-full bg-slate-800 rounded p-2 text-white border border-slate-600 text-sm" />
+                             </div>
+                             <div className="w-1/3">
+                                 <label className="text-[10px] uppercase text-slate-500">Коеф. X</label>
+                                 <input type="number" step="0.01" value={matchFormData.oddsD} onChange={e => setMatchFormData({...matchFormData, oddsD: e.target.value})} className="w-full bg-slate-800 rounded p-2 text-white border border-slate-600 text-sm" />
+                             </div>
+                             <div className="w-1/3">
+                                 <label className="text-[10px] uppercase text-slate-500">Коеф. 2</label>
+                                 <input type="number" step="0.01" value={matchFormData.oddsA} onChange={e => setMatchFormData({...matchFormData, oddsA: e.target.value})} className="w-full bg-slate-800 rounded p-2 text-white border border-slate-600 text-sm" />
+                             </div>
+                         </div>
+
+                         <div className="flex gap-2 pt-2">
+                             {matchFormData.isEditing && (
+                                 <button type="button" onClick={() => setMatchFormData(emptyMatchForm)} className="w-1/3 bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded-lg transition-colors text-sm">
+                                     Отказ
+                                 </button>
+                             )}
+                             <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-lg transition-colors text-sm">
+                                 {matchFormData.isEditing ? 'Запази промените' : 'Добави нов мач'}
+                             </button>
+                         </div>
+                     </form>
+
+                     <h3 className="text-sm font-bold text-slate-400 mb-2">Списък мачове:</h3>
+                     <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                         {[...matches].sort((a,b) => a.id - b.id).map(m => (
+                             <div key={m.id} className="bg-slate-900 p-2.5 rounded-lg border border-slate-700 flex items-center justify-between">
+                                 <div className="text-xs truncate w-2/3 text-slate-300">
+                                     <span className="text-slate-500 mr-2">#{m.id}</span>
+                                     <strong>{m.home}</strong> - <strong>{m.away}</strong>
+                                 </div>
+                                 <button 
+                                     onClick={() => {
+                                         setMatchFormData({
+                                             id: m.id,
+                                             date: m.date,
+                                             time: m.time !== '-' ? m.time : '',
+                                             home: m.home,
+                                             away: m.away,
+                                             oddsH: m.oddsH,
+                                             oddsD: m.oddsD,
+                                             oddsA: m.oddsA,
+                                             isEditing: true
+                                         });
+                                         window.scrollTo({ top: 0, behavior: 'smooth' });
+                                     }}
+                                     className="bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 border border-indigo-600/30 text-[10px] px-3 py-1 rounded transition-colors"
+                                 >
+                                     Редактирай
+                                 </button>
+                             </div>
+                         ))}
+                     </div>
+                 </div>
+             )}
+
+             {/* ТАБ CSV */}
              {adminSubTab === 'schedule' && (
                  <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 text-center">
                      <h3 className="font-bold text-indigo-400 mb-4 flex items-center justify-center gap-2">
