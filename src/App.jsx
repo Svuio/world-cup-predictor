@@ -33,9 +33,6 @@ const INITIAL_MATCHES = [
   { id: 5, date: '13 Юни 2026', time: '16:00', home: 'Катар', away: 'Швейцария', oddsH: 6.50, oddsD: 4.00, oddsA: 1.55, status: 'upcoming', resultHome: null, resultAway: null },
   { id: 6, date: '14 Юни 2026', time: '19:00', home: 'Бразилия', away: 'Мароко', oddsH: 1.30, oddsD: 5.00, oddsA: 10.00, status: 'upcoming', resultHome: null, resultAway: null },
   { id: 7, date: '14 Юни 2026', time: '22:00', home: 'Хаити', away: 'Шотландия', oddsH: 8.00, oddsD: 4.50, oddsA: 1.40, status: 'upcoming', resultHome: null, resultAway: null },
-  
-  // ВАЖНО: Постави останалите мачове (от 8 до 85) тук в същия формат!
-  
   { id: 86, date: '03 Юли 2026', time: '18:00', home: 'Победител Група J', away: 'Втори Група H', oddsH: 2.00, oddsD: 3.00, oddsA: 3.00, status: 'upcoming', resultHome: null, resultAway: null },
   { id: 87, date: '03 Юли 2026', time: '22:00', home: 'Победител Група H', away: 'Втори Група G', oddsH: 2.00, oddsD: 3.00, oddsA: 3.00, status: 'upcoming', resultHome: null, resultAway: null },
   { id: 88, date: '03 Юли 2026', time: '18:00', home: 'Победител Група D', away: 'Трети Група B/E/F/I/J', oddsH: 2.00, oddsD: 3.00, oddsA: 3.00, status: 'upcoming', resultHome: null, resultAway: null },
@@ -133,8 +130,7 @@ export default function App() {
   const [loginPass, setLoginPass] = useState('');
   const [adminPin, setAdminPin] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
-  const [showAllMatches, setShowAllMatches] = useState(false);
-  const [adminSubTab, setAdminSubTab] = useState('results');
+  const [adminSubTab, setAdminSubTab] = useState('active'); // Новите табове: active, history, players, schedule
   const [dialog, setDialog] = useState({ isOpen: false, type: 'confirm', message: '', onConfirm: null });
 
   const handleLogin = async (e) => {
@@ -145,9 +141,7 @@ export default function App() {
     const existingUser = users.find(u => u.name === loginName.trim());
     
     if (existingUser) {
-        // Проверяваме дали въведеният хеш съвпада, ИЛИ за старите играчи - дали чистата им стара парола съвпада
         if (existingUser.password === hashed || existingUser.password === loginPass) {
-            // Ако потребителят е влязъл със стара парола на чист текст, автоматично я превръщаме в SHA-256 хеш
             if (existingUser.password === loginPass) {
                 const newUsers = users.map(u => u.name === existingUser.name ? {...u, password: hashed} : u);
                 setUsers(newUsers);
@@ -156,7 +150,6 @@ export default function App() {
             setCurrentUser(existingUser.name);
             setActiveTab('matches');
         } else if (!existingUser.password) {
-            // Защита за акаунти съвсем без парола
             const newUsers = users.map(u => u.name === existingUser.name ? {...u, password: hashed} : u);
             setUsers(newUsers);
             await syncData(newUsers, null);
@@ -166,7 +159,6 @@ export default function App() {
             setDialog({ isOpen: true, type: 'alert', message: 'Грешна парола за този потребител!' });
         }
     } else {
-        // Регистрация на нов потребител - директно записваме SHA-256 хеша в базата данни
         const newUsers = [...users, { name: loginName.trim(), password: hashed, predictions: {}, points: 0 }];
         setUsers(newUsers);
         await syncData(newUsers, null);
@@ -184,6 +176,10 @@ export default function App() {
   };
 
   const handlePrediction = (matchId, h, a) => {
+    // Проверка дали мачът вече не е започнал (само допълнителна защита)
+    const currentMatch = matches.find(m => m.id === matchId);
+    if (currentMatch && currentMatch.status !== 'upcoming') return;
+
     const newUsers = users.map(u => {
       if (u.name === currentUser) {
         const newPreds = { ...u.predictions };
@@ -228,6 +224,35 @@ export default function App() {
     return pts;
   };
 
+  const updateMatchTime = (matchId, newTime) => {
+    const updatedMatches = matches.map(m => m.id === matchId ? { ...m, time: newTime } : m);
+    setMatches(updatedMatches);
+    syncData(null, updatedMatches);
+  };
+
+  const startMatch = (matchId) => {
+    const updatedMatches = matches.map(m => m.id === matchId ? { ...m, status: 'started' } : m);
+    setMatches(updatedMatches);
+    syncData(null, updatedMatches);
+  };
+
+  const revertToStarted = (matchId) => {
+    const updatedMatches = matches.map(m => m.id === matchId ? { ...m, status: 'started', resultHome: null, resultAway: null } : m);
+    
+    // Трябва да преизчислим точките на всички, защото сме премахнали резултата
+    const newUsers = users.map(user => {
+      let totalPoints = 0;
+      updatedMatches.filter(m => m.status === 'finished').forEach(m => {
+          totalPoints += calculatePoints(m, user.predictions[m.id]);
+      });
+      return { ...user, points: totalPoints };
+    });
+
+    setMatches(updatedMatches);
+    setUsers(newUsers);
+    syncData(newUsers, updatedMatches);
+  };
+
   const publishResult = (matchId, homeGoals, awayGoals) => {
     const updatedMatches = matches.map(m => m.id === matchId ? { ...m, resultHome: homeGoals, resultAway: awayGoals, status: 'finished' } : m);
     
@@ -252,38 +277,50 @@ export default function App() {
       reader.onload = async (event) => {
           try {
               const text = event.target.result;
-              // Разделяме по редове
               const rows = text.split(/\r?\n/).filter(row => row.trim() !== '');
               const newMatchesData = [];
 
-              // Пропускаме първия ред (заглавната лента)
               for (let i = 1; i < rows.length; i++) {
                   const cols = rows[i].split(',');
 
                   if (cols.length >= 10) {
                       const id = parseInt(cols[0]);
                       if (isNaN(id)) continue;
+                      
+                      const existingMatch = matches.find(m => m.id === id);
 
-                      newMatchesData.push({
-                          id: id,
-                          date: cols[1],
-                          time: '-', // Тъй като в CSV файла няма час
-                          home: cols[4],
-                          away: cols[5],
-                          oddsH: parseFloat(cols[7]) || 1.00,
-                          oddsD: parseFloat(cols[8]) || 1.00,
-                          oddsA: parseFloat(cols[9]) || 1.00,
-                          status: 'upcoming',
-                          resultHome: null,
-                          resultAway: null
-                      });
+                      if (existingMatch) {
+                          newMatchesData.push({
+                              ...existingMatch, 
+                              date: cols[1],    
+                              home: cols[4],
+                              away: cols[5],
+                              oddsH: parseFloat(cols[7]) || 1.00,
+                              oddsD: parseFloat(cols[8]) || 1.00,
+                              oddsA: parseFloat(cols[9]) || 1.00
+                          });
+                      } else {
+                          newMatchesData.push({
+                              id: id,
+                              date: cols[1],
+                              time: '-', 
+                              home: cols[4],
+                              away: cols[5],
+                              oddsH: parseFloat(cols[7]) || 1.00,
+                              oddsD: parseFloat(cols[8]) || 1.00,
+                              oddsA: parseFloat(cols[9]) || 1.00,
+                              status: 'upcoming',
+                              resultHome: null,
+                              resultAway: null
+                          });
+                      }
                   }
               }
 
               if (newMatchesData.length > 0) {
                   setMatches(newMatchesData);
-                  await syncData(null, newMatchesData); // Обновяваме базата данни
-                  setDialog({ isOpen: true, type: 'alert', message: `Успешно качени и запазени ${newMatchesData.length} мача от файла!` });
+                  await syncData(null, newMatchesData); 
+                  setDialog({ isOpen: true, type: 'alert', message: `Успешно обновени ${newMatchesData.length} мача! Старите резултати и прогнози са запазени.` });
               } else {
                   setDialog({ isOpen: true, type: 'alert', message: 'Не бяха намерени валидни мачове във файла. Провери формата.' });
               }
@@ -448,6 +485,12 @@ export default function App() {
                   <div className="text-2xl font-black text-emerald-400 bg-slate-900 px-4 py-1 rounded-lg border border-emerald-900/50">
                     {m.resultHome} : {m.resultAway}
                   </div>
+                ) : m.status === 'started' ? (
+                  <div className="flex gap-2 bg-slate-900 p-1.5 rounded-xl border border-rose-900/50 shadow-[0_0_10px_rgba(225,29,72,0.2)]">
+                    <input disabled value={users.find(u=>u.name === currentUser)?.predictions[m.id]?.h ?? ''} className="w-11 h-10 bg-slate-800 rounded-lg text-center font-bold text-slate-500 opacity-80 cursor-not-allowed" />
+                    <span className="text-slate-600 self-center">-</span>
+                    <input disabled value={users.find(u=>u.name === currentUser)?.predictions[m.id]?.a ?? ''} className="w-11 h-10 bg-slate-800 rounded-lg text-center font-bold text-slate-500 opacity-80 cursor-not-allowed" />
+                  </div>
                 ) : currentUser !== 'Admin' ? (
                   <div className="flex gap-2 bg-slate-900 p-1.5 rounded-xl border border-slate-700">
                     <input 
@@ -483,15 +526,16 @@ export default function App() {
             </div>
 
             <div className="mt-4 pt-3 border-t border-slate-700/50">
-              <div className="text-xs text-slate-400 mb-2 flex justify-between">
+              <div className="text-xs text-slate-400 mb-2 flex justify-between items-center">
                 <span>Прогнози на колегите:</span>
-                {m.status !== 'finished' && <span className="text-rose-400/80 flex items-center gap-1"><Lock size={12}/> Скрити до мача</span>}
+                {m.status === 'upcoming' && <span className="text-rose-400/80 flex items-center gap-1"><Lock size={12}/> Скрити до мача</span>}
+                {m.status === 'started' && <span className="text-emerald-400 flex items-center gap-1 font-bold animate-pulse">На живо (Заключени)</span>}
               </div>
               <div className="flex flex-wrap gap-2">
                 {users.filter(u => u.name !== currentUser && u.predictions[m.id]).map(u => {
                   const p = u.predictions[m.id];
                   const hasFullPred = (p.h !== '' && p.a !== '');
-                  const isVisible = m.status === 'finished';
+                  const isVisible = m.status === 'finished' || m.status === 'started';
                   
                   return (
                   <div key={u.name} className="bg-slate-900/50 text-xs px-2 py-1 rounded border border-slate-700/50 flex gap-1 items-center">
@@ -568,69 +612,140 @@ export default function App() {
 
         {activeTab === 'admin' && isAdmin && (
           <div className="space-y-4">
-             <div className="flex gap-2 mb-6">
-                <button onClick={() => setAdminSubTab('results')} className={`flex-1 py-2 rounded-lg font-semibold transition-colors ${adminSubTab === 'results' ? 'bg-slate-700 text-white' : 'bg-slate-800 text-slate-400'}`}>Резултати</button>
-                <button onClick={() => setAdminSubTab('players')} className={`flex-1 py-2 rounded-lg font-semibold transition-colors ${adminSubTab === 'players' ? 'bg-rose-900/50 text-rose-200' : 'bg-slate-800 text-slate-400'}`}>Играчи</button>
-                <button onClick={() => setAdminSubTab('schedule')} className={`flex-1 py-2 rounded-lg font-semibold transition-colors ${adminSubTab === 'schedule' ? 'bg-indigo-900/50 text-indigo-200' : 'bg-slate-800 text-slate-400'}`}>Програма</button>
+             <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+                <button onClick={() => setAdminSubTab('active')} className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition-colors ${adminSubTab === 'active' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}>Активни</button>
+                <button onClick={() => setAdminSubTab('history')} className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition-colors ${adminSubTab === 'history' ? 'bg-slate-700 text-white' : 'bg-slate-800 text-slate-400'}`}>История</button>
+                <button onClick={() => setAdminSubTab('players')} className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition-colors ${adminSubTab === 'players' ? 'bg-rose-900/50 text-rose-200' : 'bg-slate-800 text-slate-400'}`}>Играчи</button>
+                <button onClick={() => setAdminSubTab('schedule')} className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition-colors ${adminSubTab === 'schedule' ? 'bg-indigo-900/50 text-indigo-200' : 'bg-slate-800 text-slate-400'}`}>Програма</button>
              </div>
 
-             {adminSubTab === 'results' && (
+             {/* ТАБ АКТИВНИ: Предстоящи мачове и мачове на живо */}
+             {adminSubTab === 'active' && (
                 <>
-                    <div className="flex justify-between items-center mb-4 bg-slate-800 p-3 rounded-xl border border-slate-700">
-                        <span className="text-sm text-slate-400">Филтър мачове:</span>
-                        <button 
-                            onClick={() => setShowAllMatches(!showAllMatches)}
-                            className="text-xs bg-slate-700 px-3 py-1.5 rounded-lg font-semibold hover:bg-slate-600 transition-colors"
-                        >
-                            {showAllMatches ? 'Покажи само предстоящи' : 'Покажи ВСИЧКИ (104)'}
-                        </button>
-                    </div>
-
                     {matches
-                        .filter(m => showAllMatches || m.status === 'upcoming')
+                        .filter(m => m.status === 'upcoming' || m.status === 'started')
                         .map(m => (
-                    <div key={m.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 mb-3 shadow-sm flex flex-col gap-3">
-                        <div className="flex justify-between text-xs text-slate-400">
+                    <div key={m.id} className={`bg-slate-800 p-4 rounded-xl border mb-3 shadow-sm flex flex-col gap-3 ${m.status === 'started' ? 'border-rose-900/50' : 'border-slate-700'}`}>
+                        <div className="flex justify-between items-center text-xs text-slate-400">
                             <span>#{m.id} | {m.date}</span>
-                            {m.home.startsWith('Победител') && <span className="text-amber-500 font-bold">Елиминация</span>}
+                            <div className="flex items-center gap-2">
+                                Час:
+                                <input 
+                                    type="time" 
+                                    defaultValue={m.time !== '-' ? m.time : ''} 
+                                    onBlur={(e) => {
+                                        if (e.target.value !== m.time) updateMatchTime(m.id, e.target.value || '-');
+                                    }}
+                                    className="bg-slate-900 px-2 py-1 rounded border border-slate-700 text-white focus:outline-none focus:border-emerald-500" 
+                                />
+                            </div>
                         </div>
+                        
                         <div className="flex items-center justify-between gap-4">
                             <div className="flex-1 font-semibold truncate text-right">{m.home}</div>
                             
-                            {m.status === 'finished' ? (
-                                <div className="bg-slate-900 px-4 py-2 rounded-lg font-bold text-emerald-400 border border-emerald-900">
-                                    {m.resultHome} : {m.resultAway}
-                                </div>
-                            ) : (
-                                <div className="flex items-center gap-2">
-                                    <form onSubmit={(e) => {
-                                        e.preventDefault();
-                                        const hVal = e.target.elements.homeResult.value;
-                                        const aVal = e.target.elements.awayResult.value;
-                                        const h = parseInt(hVal);
-                                        const a = parseInt(aVal);
-                                        
-                                        if(!isNaN(h) && !isNaN(a)) {
-                                          publishResult(m.id, h, a);
-                                        } else {
-                                          setDialog({ isOpen: true, type: 'alert', message: 'Моля, въведете валидни числа.' });
-                                        }
-                                    }} className="flex gap-1 items-center">
-                                        <input name="homeResult" type="number" min="0" required className="w-10 h-10 bg-slate-900 rounded text-center font-bold focus:outline-none focus:ring-1 focus:ring-rose-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none" />
-                                        <span className="text-slate-500">-</span>
-                                        <input name="awayResult" type="number" min="0" required className="w-10 h-10 bg-slate-900 rounded text-center font-bold focus:outline-none focus:ring-1 focus:ring-rose-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none" />
-                                        <button type="submit" className="ml-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold px-3 py-2 rounded transition-colors">
-                                            Запази
-                                        </button>
-                                    </form>
-                                </div>
-                            )}
+                            <div className="bg-slate-900 px-3 py-1.5 rounded-lg text-slate-500 font-bold text-sm">
+                                VS
+                            </div>
                             
                             <div className="flex-1 font-semibold truncate text-left">{m.away}</div>
                         </div>
+
+                        {/* Управление на мача от Админа */}
+                        {m.status === 'upcoming' ? (
+                            <button 
+                                onClick={() => {
+                                    setDialog({ 
+                                        isOpen: true, 
+                                        type: 'confirm', 
+                                        message: `Сигурни ли сте, че искате да стартирате мача ${m.home} - ${m.away}? Прогнозите на всички играчи ще бъдат заключени и публично видими.`, 
+                                        onConfirm: () => { startMatch(m.id); setDialog({isOpen: false, type:'confirm', message:'', onConfirm:null}); } 
+                                    });
+                                }} 
+                                className="mt-2 bg-yellow-600/20 text-yellow-500 hover:bg-yellow-600/40 border border-yellow-600/30 text-xs font-bold py-2 rounded-lg transition-colors w-full flex justify-center items-center gap-2"
+                            >
+                                ⏳ Започни мача (Заключи прогнозите)
+                            </button>
+                        ) : (
+                            <div className="mt-2 bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                <div className="text-center text-xs text-emerald-400 font-bold animate-pulse mb-2">НА ЖИВО - Въведи краен резултат:</div>
+                                <form onSubmit={(e) => {
+                                    e.preventDefault();
+                                    const hVal = e.target.elements.homeResult.value;
+                                    const aVal = e.target.elements.awayResult.value;
+                                    const h = parseInt(hVal);
+                                    const a = parseInt(aVal);
+                                    
+                                    if(!isNaN(h) && !isNaN(a)) {
+                                        publishResult(m.id, h, a);
+                                    } else {
+                                        setDialog({ isOpen: true, type: 'alert', message: 'Моля, въведете валидни числа.' });
+                                    }
+                                }} className="flex gap-2 items-center justify-center">
+                                    <input name="homeResult" type="number" min="0" required className="w-12 h-10 bg-slate-800 rounded text-center font-bold text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none" />
+                                    <span className="text-slate-500">-</span>
+                                    <input name="awayResult" type="number" min="0" required className="w-12 h-10 bg-slate-800 rounded text-center font-bold text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none" />
+                                    <button type="submit" className="ml-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-lg transition-colors">
+                                        Завърши
+                                    </button>
+                                </form>
+                            </div>
+                        )}
                     </div>
                     ))}
+                    {matches.filter(m => m.status === 'upcoming' || m.status === 'started').length === 0 && (
+                        <div className="text-center text-slate-500 py-4">Няма активни или предстоящи мачове.</div>
+                    )}
                 </>
+             )}
+
+             {/* ТАБ ИСТОРИЯ: Завършили мачове */}
+             {adminSubTab === 'history' && (
+                <div className="space-y-3">
+                    {matches
+                        .filter(m => m.status === 'finished')
+                        .sort((a,b) => b.id - a.id) // Сортираме от най-скорошните към по-старите
+                        .map(m => (
+                    <div key={m.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-sm flex flex-col gap-3">
+                        <div className="flex justify-between text-xs text-slate-400">
+                            <span>#{m.id} | {m.date} | {m.time}</span>
+                            <span className="text-emerald-500 font-bold">Завършил</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 mb-2">
+                            <div className="flex-1 font-semibold truncate text-right">{m.home}</div>
+                            <div className="bg-slate-900 px-4 py-1.5 rounded-lg font-bold text-emerald-400 border border-emerald-900/50 text-lg">
+                                {m.resultHome} : {m.resultAway}
+                            </div>
+                            <div className="flex-1 font-semibold truncate text-left">{m.away}</div>
+                        </div>
+                        
+                        <div className="flex justify-between items-center bg-slate-900 p-2 rounded-lg border border-slate-700">
+                            <form onSubmit={(e) => {
+                                e.preventDefault();
+                                const h = parseInt(e.target.elements.h.value);
+                                const a = parseInt(e.target.elements.a.value);
+                                if(!isNaN(h) && !isNaN(a)) publishResult(m.id, h, a);
+                            }} className="flex gap-1 items-center">
+                                <span className="text-xs text-slate-500 mr-2">Коригирай:</span>
+                                <input name="h" defaultValue={m.resultHome} type="number" min="0" required className="w-8 h-8 bg-slate-800 rounded text-center font-bold text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none" />
+                                <span className="text-slate-500">-</span>
+                                <input name="a" defaultValue={m.resultAway} type="number" min="0" required className="w-8 h-8 bg-slate-800 rounded text-center font-bold text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none" />
+                                <button type="submit" className="ml-2 bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-bold px-2 py-1.5 rounded">Запази</button>
+                            </form>
+                            
+                            <button 
+                                onClick={() => revertToStarted(m.id)}
+                                className="text-[10px] text-rose-400 hover:text-rose-300 underline"
+                            >
+                                Отмени завършването
+                            </button>
+                        </div>
+                    </div>
+                    ))}
+                    {matches.filter(m => m.status === 'finished').length === 0 && (
+                        <div className="text-center text-slate-500 py-4">Все още няма изиграни мачове.</div>
+                    )}
+                </div>
              )}
 
              {adminSubTab === 'players' && (
